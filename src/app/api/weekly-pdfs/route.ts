@@ -1,21 +1,10 @@
 import { NextResponse } from "next/server"
 
-// CONFIGURAÇÕES CRÍTICAS PARA UPLOADS GRANDES
-export const dynamic = "force-dynamic"
-export const maxDuration = 300 // 5 minutos para uploads grandes
-export const runtime = "nodejs" // Garantir que usa Node.js runtime
+export const dynamic = "force_dynamic"
+export const maxDuration = 60 // Máximo permitido no Vercel Hobby
+export const runtime = "nodejs"
 
-// Configurar limite de body explicitamente
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: "20mb",
-    },
-    responseLimit: false,
-  },
-}
-
-// GET - Carregar PDFs semanais com cache
+// GET - Carregar PDFs semanais
 export async function GET() {
   try {
     const { loadWeeklyPdfsFromCloud, getLatestWeeklyPdf } = await import("@/app/lib/storage-optimized")
@@ -42,43 +31,36 @@ export async function GET() {
   }
 }
 
-// POST - Adicionar novo PDF com configuração de limite
+// POST - Upload com limite do Vercel (4.5MB)
 export async function POST(request: Request) {
   try {
     console.log("📄 [PDF-UPLOAD] Iniciando upload...")
-    console.log("📊 [PDF-UPLOAD] Headers:", Object.fromEntries(request.headers.entries()))
 
-    // Verificar Content-Length
+    // Verificar Content-Length antes de processar
     const contentLength = request.headers.get("content-length")
     if (contentLength) {
       const sizeMB = Number.parseInt(contentLength) / (1024 * 1024)
-      console.log(`📏 [PDF-UPLOAD] Tamanho do request: ${sizeMB.toFixed(2)}MB`)
+      console.log(`📏 [PDF-UPLOAD] Tamanho: ${sizeMB.toFixed(2)}MB`)
 
-      if (sizeMB > 20) {
+      // Limite real do Vercel Hobby é ~4.5MB
+      if (sizeMB > 4.5) {
         return NextResponse.json(
           {
-            error: "Arquivo muito grande - máximo 20MB permitido",
+            error: `Arquivo muito grande (${sizeMB.toFixed(1)}MB). Limite do Vercel: 4.5MB`,
             success: false,
+            suggestion: "Comprima o PDF usando ferramentas online antes de fazer upload",
           },
           { status: 413 },
         )
       }
     }
 
-    // Processar FormData com timeout maior
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("Timeout ao processar FormData")), 60000) // 1 minuto
-    })
-
-    const formDataPromise = request.formData()
-    const formData = (await Promise.race([formDataPromise, timeoutPromise])) as FormData
-
+    const formData = await request.formData()
     const file = formData.get("file") as File
     const name = formData.get("name") as string
 
-    // Validações detalhadas
+    // Validações
     if (!file) {
-      console.log("❌ [PDF-UPLOAD] Nenhum arquivo enviado")
       return NextResponse.json(
         {
           error: "Nenhum arquivo enviado",
@@ -89,7 +71,6 @@ export async function POST(request: Request) {
     }
 
     if (!name) {
-      console.log("❌ [PDF-UPLOAD] Nome é obrigatório")
       return NextResponse.json(
         {
           error: "Nome é obrigatório",
@@ -100,7 +81,6 @@ export async function POST(request: Request) {
     }
 
     if (file.type !== "application/pdf") {
-      console.log("❌ [PDF-UPLOAD] Tipo de arquivo inválido:", file.type)
       return NextResponse.json(
         {
           error: "Apenas arquivos PDF são permitidos",
@@ -110,56 +90,43 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verificar tamanho do arquivo
-    if (file.size > 20 * 1024 * 1024) {
-      console.log("❌ [PDF-UPLOAD] Arquivo muito grande:", file.size)
+    // Verificar tamanho do arquivo novamente
+    const fileSizeMB = file.size / (1024 * 1024)
+    if (fileSizeMB > 4.5) {
       return NextResponse.json(
         {
-          error: "PDF muito grande (máximo 20MB)",
+          error: `PDF muito grande (${fileSizeMB.toFixed(1)}MB). Máximo: 4.5MB`,
           success: false,
+          suggestion: "Use uma ferramenta de compressão de PDF online",
         },
         { status: 413 },
       )
     }
 
-    console.log(`📊 [PDF-UPLOAD] Arquivo válido: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`)
+    console.log(`📊 [PDF-UPLOAD] Arquivo válido: ${file.name} (${fileSizeMB.toFixed(2)}MB)`)
 
     const { addWeeklyPdf } = await import("@/app/lib/storage-optimized")
+    const newPdf = await addWeeklyPdf(file, name)
 
-    // Upload com timeout maior
-    const uploadTimeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("Timeout no upload para R2")), 300000) // 5 minutos
-    })
-
-    const uploadPromise = addWeeklyPdf(file, name)
-    const newPdf = await Promise.race([uploadPromise, uploadTimeoutPromise])
-
-    console.log("✅ [PDF-UPLOAD] Upload concluído com sucesso")
+    console.log("✅ [PDF-UPLOAD] Upload concluído")
 
     return NextResponse.json({
       pdf: newPdf,
       success: true,
     })
   } catch (error) {
-    console.error("❌ [PDF-UPLOAD] Erro detalhado:", error)
+    console.error("❌ [PDF-UPLOAD] Erro:", error)
 
-    // Tratamento específico de erros
     let errorMessage = "Erro ao fazer upload do PDF"
     let statusCode = 500
 
     if (error instanceof Error) {
-      if (error.message.includes("timeout") || error.message.includes("Timeout")) {
+      if (error.message.includes("timeout")) {
         errorMessage = "Upload demorou muito - tente um arquivo menor"
         statusCode = 408
       } else if (error.message.includes("FormData")) {
-        errorMessage = "Erro ao processar arquivo - arquivo pode estar corrompido"
+        errorMessage = "Erro ao processar arquivo - pode estar corrompido"
         statusCode = 400
-      } else if (error.message.includes("credentials")) {
-        errorMessage = "Erro de configuração do servidor"
-        statusCode = 500
-      } else if (error.message.includes("bucket")) {
-        errorMessage = "Erro no armazenamento"
-        statusCode = 500
       } else {
         errorMessage = error.message
       }
