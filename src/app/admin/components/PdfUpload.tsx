@@ -34,9 +34,9 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
       return
     }
 
-    // Aumentar limite para 15MB
-    if (file.size > 15 * 1024 * 1024) {
-      setUploadError("O PDF deve ter no máximo 15MB")
+    // Limite de 20MB (mais conservador)
+    if (file.size > 20 * 1024 * 1024) {
+      setUploadError("O PDF deve ter no máximo 20MB")
       return
     }
 
@@ -86,16 +86,17 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
       setUploadProgress(0)
 
       // Simular progresso para arquivos grandes
-      if (selectedFile.size > 5 * 1024 * 1024) {
+      const sizeMB = selectedFile.size / (1024 * 1024)
+      if (sizeMB > 5) {
         const interval = setInterval(() => {
           setUploadProgress((prev) => {
             if (prev >= 90) {
               clearInterval(interval)
               return 90
             }
-            return prev + 10
+            return prev + 5
           })
-        }, 500)
+        }, 1000)
       }
 
       await onUpload(selectedFile, pdfName.trim())
@@ -110,10 +111,14 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
     } catch (error) {
       setUploadProgress(0)
       if (error instanceof Error) {
-        if (error.message.includes("timeout")) {
+        if (error.message.includes("413") || error.message.includes("Content Too Large")) {
+          setUploadError(
+            "Arquivo muito grande para o servidor - tente comprimir o PDF ou usar um arquivo menor que 15MB",
+          )
+        } else if (error.message.includes("timeout") || error.message.includes("408")) {
           setUploadError("Upload demorou muito - tente um arquivo menor ou verifique sua conexão")
-        } else if (error.message.includes("15MB")) {
-          setUploadError("Arquivo muito grande - máximo 15MB permitido")
+        } else if (error.message.includes("20MB")) {
+          setUploadError("Arquivo muito grande - máximo 20MB permitido")
         } else {
           setUploadError(error.message)
         }
@@ -135,8 +140,10 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
 
   const getFileSizeWarning = (size: number) => {
     const sizeMB = size / (1024 * 1024)
-    if (sizeMB > 10) {
-      return "⚠️ Arquivo grande - upload pode demorar"
+    if (sizeMB > 15) {
+      return "⚠️ Arquivo muito grande - pode falhar no upload"
+    } else if (sizeMB > 10) {
+      return "⚠️ Arquivo grande - upload pode demorar bastante"
     } else if (sizeMB > 5) {
       return "ℹ️ Arquivo médio - aguarde o upload"
     }
@@ -203,6 +210,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                   <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
                 </div>
                 <p className="text-lg font-medium text-gray-700">Fazendo upload...</p>
+                <p className="text-sm text-gray-500">Não feche esta página</p>
                 {uploadProgress > 0 && (
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
@@ -221,7 +229,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                   <p className="text-lg font-medium text-gray-700">{selectedFile.name}</p>
                   <p className="text-sm text-gray-500">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
                   {getFileSizeWarning(selectedFile.size) && (
-                    <p className="text-xs text-orange-600 mt-1">{getFileSizeWarning(selectedFile.size)}</p>
+                    <p className="text-xs text-orange-600 mt-1 font-medium">{getFileSizeWarning(selectedFile.size)}</p>
                   )}
                 </div>
                 <button
@@ -242,7 +250,8 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                 </div>
                 <div>
                   <p className="text-lg font-medium text-gray-700">Clique ou arraste um arquivo PDF</p>
-                  <p className="text-sm text-gray-500 mt-1">PDF até 15MB</p>
+                  <p className="text-sm text-gray-500 mt-1">PDF até 20MB</p>
+                  <p className="text-xs text-gray-400 mt-1">Recomendado: máximo 10MB para melhor performance</p>
                 </div>
               </>
             )}
@@ -257,7 +266,17 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
               <div>
                 <p className="font-medium">Erro no upload:</p>
                 <p>{uploadError}</p>
-                <p className="mt-1 text-xs">Dicas: Verifique o tamanho do arquivo e sua conexão de internet.</p>
+                <div className="mt-2 text-xs">
+                  <p>
+                    <strong>Dicas para resolver:</strong>
+                  </p>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    <li>Comprima o PDF usando ferramentas online</li>
+                    <li>Reduza a qualidade das imagens no PDF</li>
+                    <li>Divida PDFs muito grandes em partes menores</li>
+                    <li>Verifique sua conexão de internet</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -287,9 +306,14 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
 
       {/* Info sobre limites */}
       <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
-        <p>• Tamanho máximo: 15MB</p>
-        <p>• Arquivos grandes podem demorar alguns minutos</p>
-        <p>• Mantenha a página aberta durante o upload</p>
+        <p>
+          <strong>Limites e recomendações:</strong>
+        </p>
+        <p>• Tamanho máximo: 20MB</p>
+        <p>• Recomendado: até 10MB para melhor performance</p>
+        <p>• Arquivos grandes podem demorar vários minutos</p>
+        <p>• Mantenha a página aberta durante todo o upload</p>
+        <p>• Se falhar, tente comprimir o PDF primeiro</p>
       </div>
     </div>
   )

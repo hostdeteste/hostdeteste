@@ -9,14 +9,12 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Configurações para uploads grandes
+  // CONFIGURAÇÃO CRÍTICA PARA UPLOADS GRANDES
   experimental: {
     serverComponentsExternalPackages: ["@aws-sdk/client-s3"],
-  },
-  // Aumentar limite de body
-  api: {
-    bodyParser: {
-      sizeLimit: "15mb",
+    // Aumentar limite de body para 20MB
+    serverActions: {
+      bodySizeLimit: "20mb",
     },
   },
 }
