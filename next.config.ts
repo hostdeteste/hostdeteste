@@ -1,31 +1,12 @@
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
-  // Configurações de produção otimizadas
+  // Configurações básicas otimizadas
   poweredByHeader: false,
   compress: true,
 
   // Suporte para pacotes externos no servidor (Next.js 15)
-  serverExternalPackages: [
-    "sharp",
-    "pdf-lib", // Adicionar pdf-lib como pacote externo
-    "@aws-sdk/client-s3",
-    "@aws-sdk/s3-presigned-post",
-  ],
-
-  // Configurações experimentais
-  experimental: {
-    // Aumentar limite de body para uploads de PDF
-    serverComponentsHmrCache: false,
-  },
-
-  // Configurar limites de API
-  api: {
-    bodyParser: {
-      sizeLimit: "10mb", // Permitir até 10MB no body parser
-    },
-    responseLimit: "10mb",
-  },
+  serverExternalPackages: ["sharp", "pdf-lib", "@aws-sdk/client-s3", "@aws-sdk/s3-presigned-post"],
 
   // Headers de segurança
   async headers() {
@@ -71,10 +52,14 @@ const nextConfig: NextConfig = {
 
   // Webpack config para otimizações
   webpack: (config, { isServer }) => {
-    if (isServer) {
-      // Configurações específicas do servidor
-      config.externals = config.externals || []
-      config.externals.push("pdf-lib")
+    if (!isServer) {
+      // Configurações para o cliente - adicionar pdf-lib
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        crypto: false,
+      }
     }
 
     return config
