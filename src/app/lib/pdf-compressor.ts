@@ -34,68 +34,75 @@ export class PDFCompressor {
     try {
       console.log(`🔄 [COMPRESSOR] Comprimindo PDF de ${originalSizeMB.toFixed(2)}MB...`)
 
-      // Carregar o PDF
-      const pdfDoc = await PDFDocument.load(originalBuffer)
+      // Carregar o PDF com configurações otimizadas
+      const pdfDoc = await PDFDocument.load(originalBuffer, {
+        ignoreEncryption: true,
+        capNumbers: false,
+      })
 
       // Estratégias de compressão progressivas
       let compressedBytes: Uint8Array
 
-      // Estratégia 1: Compressão básica
+      // Estratégia 1: Compressão básica com otimizações
       compressedBytes = await pdfDoc.save({
-        useObjectStreams: false,
+        useObjectStreams: true,
         addDefaultPage: false,
         objectsPerTick: 50,
+        updateFieldAppearances: false,
       })
 
       let compressedSizeMB = compressedBytes.length / (1024 * 1024)
       console.log(`📊 [COMPRESSOR] Após compressão básica: ${compressedSizeMB.toFixed(2)}MB`)
 
-      // Estratégia 2: Se ainda muito grande, tentar compressão mais agressiva
+      // Estratégia 2: Se ainda muito grande, compressão mais agressiva
       if (compressedSizeMB > this.MAX_SIZE_MB) {
         console.log(`🔄 [COMPRESSOR] Aplicando compressão agressiva...`)
 
         // Recriar PDF com configurações mais agressivas
         const newPdfDoc = await PDFDocument.create()
-        const pages = await newPdfDoc.copyPages(pdfDoc, pdfDoc.getPageIndices())
+        const pageCount = pdfDoc.getPageCount()
 
-        pages.forEach((page) => {
-          newPdfDoc.addPage(page)
-        })
+        // Copiar páginas com otimizações
+        for (let i = 0; i < pageCount; i++) {
+          const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [i])
+          newPdfDoc.addPage(copiedPage)
+        }
 
         compressedBytes = await newPdfDoc.save({
           useObjectStreams: true,
           addDefaultPage: false,
           objectsPerTick: 20,
+          updateFieldAppearances: false,
         })
 
         compressedSizeMB = compressedBytes.length / (1024 * 1024)
         console.log(`📊 [COMPRESSOR] Após compressão agressiva: ${compressedSizeMB.toFixed(2)}MB`)
       }
 
-      // Estratégia 3: Se ainda muito grande, reduzir qualidade das imagens
+      // Estratégia 3: Última tentativa - compressão máxima
       if (compressedSizeMB > this.MAX_SIZE_MB) {
-        console.log(`🔄 [COMPRESSOR] Otimizando imagens...`)
+        console.log(`🔄 [COMPRESSOR] Aplicando compressão máxima...`)
 
         try {
-          // Esta é uma compressão mais básica - para compressão avançada de imagens
-          // seria necessário usar bibliotecas adicionais como sharp + pdf2pic
           const finalPdfDoc = await PDFDocument.create()
-          const finalPages = await finalPdfDoc.copyPages(pdfDoc, pdfDoc.getPageIndices())
+          const pageIndices = Array.from({ length: pdfDoc.getPageCount() }, (_, i) => i)
+          const copiedPages = await finalPdfDoc.copyPages(pdfDoc, pageIndices)
 
-          finalPages.forEach((page) => {
+          copiedPages.forEach((page) => {
             finalPdfDoc.addPage(page)
           })
 
           compressedBytes = await finalPdfDoc.save({
             useObjectStreams: true,
             addDefaultPage: false,
-            objectsPerTick: 10,
+            objectsPerTick: 5,
+            updateFieldAppearances: false,
           })
 
           compressedSizeMB = compressedBytes.length / (1024 * 1024)
-          console.log(`📊 [COMPRESSOR] Após otimização final: ${compressedSizeMB.toFixed(2)}MB`)
-        } catch (optimizationError) {
-          console.warn(`⚠️ [COMPRESSOR] Erro na otimização de imagens:`, optimizationError)
+          console.log(`📊 [COMPRESSOR] Após compressão máxima: ${compressedSizeMB.toFixed(2)}MB`)
+        } catch (maxCompressionError) {
+          console.warn(`⚠️ [COMPRESSOR] Erro na compressão máxima:`, maxCompressionError)
         }
       }
 
@@ -106,6 +113,7 @@ export class PDFCompressor {
       console.log(`   Original: ${originalSizeMB.toFixed(2)}MB`)
       console.log(`   Comprimido: ${compressedSizeMB.toFixed(2)}MB`)
       console.log(`   Economia: ${((1 - compressedBuffer.length / originalSize) * 100).toFixed(1)}%`)
+      console.log(`   Ratio: ${compressionRatio.toFixed(2)}x`)
 
       // Verificar se ainda está muito grande
       if (compressedSizeMB > this.MAX_SIZE_MB) {
