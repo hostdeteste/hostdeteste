@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useRef } from "react"
-import { Upload, FileText, Loader2, Calendar } from "lucide-react"
+import { Upload, FileText, Loader2, Calendar, AlertCircle } from "lucide-react"
 
 interface PdfUploadProps {
   onUpload: (file: File, name: string) => Promise<void>
@@ -15,6 +15,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
   const [pdfName, setPdfName] = useState("")
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Gerar nome automático baseado na data
@@ -33,9 +34,9 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
       return
     }
 
-    // Validar tamanho (máximo 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      setUploadError("O PDF deve ter no máximo 10MB")
+    // Aumentar limite para 15MB
+    if (file.size > 15 * 1024 * 1024) {
+      setUploadError("O PDF deve ter no máximo 15MB")
       return
     }
 
@@ -82,16 +83,43 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
 
     try {
       setUploadError(null)
+      setUploadProgress(0)
+
+      // Simular progresso para arquivos grandes
+      if (selectedFile.size > 5 * 1024 * 1024) {
+        const interval = setInterval(() => {
+          setUploadProgress((prev) => {
+            if (prev >= 90) {
+              clearInterval(interval)
+              return 90
+            }
+            return prev + 10
+          })
+        }, 500)
+      }
+
       await onUpload(selectedFile, pdfName.trim())
 
       // Limpar formulário após sucesso
       setSelectedFile(null)
       setPdfName("")
+      setUploadProgress(0)
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "Erro ao fazer upload")
+      setUploadProgress(0)
+      if (error instanceof Error) {
+        if (error.message.includes("timeout")) {
+          setUploadError("Upload demorou muito - tente um arquivo menor ou verifique sua conexão")
+        } else if (error.message.includes("15MB")) {
+          setUploadError("Arquivo muito grande - máximo 15MB permitido")
+        } else {
+          setUploadError(error.message)
+        }
+      } else {
+        setUploadError("Erro ao fazer upload")
+      }
     }
   }
 
@@ -99,9 +127,20 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
     setSelectedFile(null)
     setPdfName("")
     setUploadError(null)
+    setUploadProgress(0)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
+  }
+
+  const getFileSizeWarning = (size: number) => {
+    const sizeMB = size / (1024 * 1024)
+    if (sizeMB > 10) {
+      return "⚠️ Arquivo grande - upload pode demorar"
+    } else if (sizeMB > 5) {
+      return "ℹ️ Arquivo médio - aguarde o upload"
+    }
+    return null
   }
 
   return (
@@ -164,6 +203,14 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                   <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
                 </div>
                 <p className="text-lg font-medium text-gray-700">Fazendo upload...</p>
+                {uploadProgress > 0 && (
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                )}
               </div>
             ) : selectedFile ? (
               <div className="space-y-3">
@@ -173,6 +220,9 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                 <div>
                   <p className="text-lg font-medium text-gray-700">{selectedFile.name}</p>
                   <p className="text-sm text-gray-500">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+                  {getFileSizeWarning(selectedFile.size) && (
+                    <p className="text-xs text-orange-600 mt-1">{getFileSizeWarning(selectedFile.size)}</p>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -192,7 +242,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                 </div>
                 <div>
                   <p className="text-lg font-medium text-gray-700">Clique ou arraste um arquivo PDF</p>
-                  <p className="text-sm text-gray-500 mt-1">PDF até 10MB</p>
+                  <p className="text-sm text-gray-500 mt-1">PDF até 15MB</p>
                 </div>
               </>
             )}
@@ -202,8 +252,14 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
         {/* Error message */}
         {uploadError && (
           <div className="mt-3 text-sm text-red-600 bg-red-50 p-3 rounded-md border border-red-200">
-            <p className="font-medium">Erro:</p>
-            <p>{uploadError}</p>
+            <div className="flex items-start space-x-2">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium">Erro no upload:</p>
+                <p>{uploadError}</p>
+                <p className="mt-1 text-xs">Dicas: Verifique o tamanho do arquivo e sua conexão de internet.</p>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -218,7 +274,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
           {isUploading ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span>Fazendo Upload...</span>
+              <span>Fazendo Upload... {uploadProgress > 0 && `${uploadProgress}%`}</span>
             </>
           ) : (
             <>
@@ -228,6 +284,13 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
           )}
         </button>
       )}
+
+      {/* Info sobre limites */}
+      <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+        <p>• Tamanho máximo: 15MB</p>
+        <p>• Arquivos grandes podem demorar alguns minutos</p>
+        <p>• Mantenha a página aberta durante o upload</p>
+      </div>
     </div>
   )
 }
