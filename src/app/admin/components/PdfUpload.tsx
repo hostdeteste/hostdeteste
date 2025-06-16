@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useRef } from "react"
-import { Upload, FileText, Loader2, Calendar, AlertCircle } from "lucide-react"
+import { Upload, FileText, Loader2, Calendar, AlertCircle, ExternalLink, Zap } from "lucide-react"
 
 interface PdfUploadProps {
   onUpload: (file: File, name: string) => Promise<void>
@@ -16,6 +16,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [compressionInfo, setCompressionInfo] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Gerar nome automático baseado na data
@@ -23,7 +24,6 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
     const now = new Date()
     const day = now.getDate()
     const month = now.getMonth() + 1
-    const year = now.getFullYear()
     return `Folheto ${day}/${month} a ${day + 7}/${month}`
   }
 
@@ -34,10 +34,18 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
       return
     }
 
-    // Limite de 20MB (mais conservador)
-    if (file.size > 20 * 1024 * 1024) {
-      setUploadError("O PDF deve ter no máximo 20MB")
-      return
+    // Mostrar informação sobre compressão automática
+    const sizeMB = file.size / (1024 * 1024)
+    if (sizeMB > 4.5) {
+      setCompressionInfo(
+        `📄 Arquivo grande detectado (${sizeMB.toFixed(1)}MB). Será comprimido automaticamente para caber no limite de 4.5MB do Vercel.`,
+      )
+    } else if (sizeMB > 2) {
+      setCompressionInfo(
+        `📄 Arquivo de tamanho médio (${sizeMB.toFixed(1)}MB). Pode ser otimizado automaticamente para melhor performance.`,
+      )
+    } else {
+      setCompressionInfo(`✅ Arquivo de tamanho ideal (${sizeMB.toFixed(1)}MB). Não precisará de compressão.`)
     }
 
     setSelectedFile(file)
@@ -84,20 +92,18 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
     try {
       setUploadError(null)
       setUploadProgress(0)
+      setCompressionInfo("🔄 Processando e comprimindo PDF automaticamente...")
 
-      // Simular progresso para arquivos grandes
-      const sizeMB = selectedFile.size / (1024 * 1024)
-      if (sizeMB > 5) {
-        const interval = setInterval(() => {
-          setUploadProgress((prev) => {
-            if (prev >= 90) {
-              clearInterval(interval)
-              return 90
-            }
-            return prev + 5
-          })
-        }, 1000)
-      }
+      // Simular progresso
+      const interval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(interval)
+            return 90
+          }
+          return prev + 10
+        })
+      }, 500)
 
       await onUpload(selectedFile, pdfName.trim())
 
@@ -105,20 +111,20 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
       setSelectedFile(null)
       setPdfName("")
       setUploadProgress(0)
+      setCompressionInfo(null)
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
     } catch (error) {
       setUploadProgress(0)
+      setCompressionInfo(null)
       if (error instanceof Error) {
         if (error.message.includes("413") || error.message.includes("Content Too Large")) {
           setUploadError(
-            "Arquivo muito grande para o servidor - tente comprimir o PDF ou usar um arquivo menor que 15MB",
+            "Arquivo muito grande mesmo após compressão automática. Use uma ferramenta externa para comprimir mais.",
           )
-        } else if (error.message.includes("timeout") || error.message.includes("408")) {
-          setUploadError("Upload demorou muito - tente um arquivo menor ou verifique sua conexão")
-        } else if (error.message.includes("20MB")) {
-          setUploadError("Arquivo muito grande - máximo 20MB permitido")
+        } else if (error.message.includes("compressão")) {
+          setUploadError(`Erro na compressão automática: ${error.message}`)
         } else {
           setUploadError(error.message)
         }
@@ -133,25 +139,40 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
     setPdfName("")
     setUploadError(null)
     setUploadProgress(0)
+    setCompressionInfo(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
   }
 
-  const getFileSizeWarning = (size: number) => {
+  const getFileSizeStatus = (size: number) => {
     const sizeMB = size / (1024 * 1024)
-    if (sizeMB > 15) {
-      return "⚠️ Arquivo muito grande - pode falhar no upload"
-    } else if (sizeMB > 10) {
-      return "⚠️ Arquivo grande - upload pode demorar bastante"
-    } else if (sizeMB > 5) {
-      return "ℹ️ Arquivo médio - aguarde o upload"
+    if (sizeMB > 10) {
+      return { color: "text-red-600", message: "❌ Muito grande - será comprimido automaticamente" }
+    } else if (sizeMB > 4.5) {
+      return { color: "text-orange-600", message: "🔄 Será comprimido automaticamente" }
+    } else if (sizeMB > 2) {
+      return { color: "text-blue-600", message: "⚡ Pode ser otimizado automaticamente" }
     }
-    return null
+    return { color: "text-green-600", message: "✅ Tamanho ideal - sem compressão necessária" }
   }
 
   return (
     <div className={`space-y-6 ${className}`}>
+      {/* Novo aviso sobre compressão automática */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <Zap className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div className="text-sm">
+            <p className="font-medium text-blue-800">🚀 Compressão Automática Ativada!</p>
+            <p className="text-blue-700 mt-1">
+              PDFs grandes são automaticamente comprimidos no servidor para caber no limite de 4.5MB do Vercel. Você
+              pode fazer upload de arquivos maiores sem se preocupar!
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Nome do PDF */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">Nome do Catálogo Semanal *</label>
@@ -209,8 +230,8 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                 <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
                   <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
                 </div>
-                <p className="text-lg font-medium text-gray-700">Fazendo upload...</p>
-                <p className="text-sm text-gray-500">Não feche esta página</p>
+                <p className="text-lg font-medium text-gray-700">Processando PDF...</p>
+                <p className="text-sm text-blue-600">Comprimindo automaticamente se necessário</p>
                 {uploadProgress > 0 && (
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
@@ -228,9 +249,10 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                 <div>
                   <p className="text-lg font-medium text-gray-700">{selectedFile.name}</p>
                   <p className="text-sm text-gray-500">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
-                  {getFileSizeWarning(selectedFile.size) && (
-                    <p className="text-xs text-orange-600 mt-1 font-medium">{getFileSizeWarning(selectedFile.size)}</p>
-                  )}
+                  {(() => {
+                    const status = getFileSizeStatus(selectedFile.size)
+                    return <p className={`text-xs font-medium mt-1 ${status.color}`}>{status.message}</p>
+                  })()}
                 </div>
                 <button
                   type="button"
@@ -250,13 +272,23 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                 </div>
                 <div>
                   <p className="text-lg font-medium text-gray-700">Clique ou arraste um arquivo PDF</p>
-                  <p className="text-sm text-gray-500 mt-1">PDF até 20MB</p>
-                  <p className="text-xs text-gray-400 mt-1">Recomendado: máximo 10MB para melhor performance</p>
+                  <p className="text-sm text-gray-500 mt-1">Qualquer tamanho - compressão automática ativada!</p>
+                  <p className="text-xs text-blue-600 mt-1">⚡ PDFs grandes são otimizados automaticamente</p>
                 </div>
               </>
             )}
           </div>
         </div>
+
+        {/* Compression info */}
+        {compressionInfo && (
+          <div className="mt-3 text-sm text-blue-600 bg-blue-50 p-3 rounded-md border border-blue-200">
+            <div className="flex items-start space-x-2">
+              <Zap className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <p>{compressionInfo}</p>
+            </div>
+          </div>
+        )}
 
         {/* Error message */}
         {uploadError && (
@@ -266,17 +298,6 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
               <div>
                 <p className="font-medium">Erro no upload:</p>
                 <p>{uploadError}</p>
-                <div className="mt-2 text-xs">
-                  <p>
-                    <strong>Dicas para resolver:</strong>
-                  </p>
-                  <ul className="list-disc list-inside mt-1 space-y-1">
-                    <li>Comprima o PDF usando ferramentas online</li>
-                    <li>Reduza a qualidade das imagens no PDF</li>
-                    <li>Divida PDFs muito grandes em partes menores</li>
-                    <li>Verifique sua conexão de internet</li>
-                  </ul>
-                </div>
               </div>
             </div>
           </div>
@@ -293,27 +314,54 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
           {isUploading ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span>Fazendo Upload... {uploadProgress > 0 && `${uploadProgress}%`}</span>
+              <span>Processando... {uploadProgress > 0 && `${uploadProgress}%`}</span>
             </>
           ) : (
             <>
               <Upload className="h-5 w-5" />
-              <span>Fazer Upload do Catálogo</span>
+              <span>Fazer Upload (com Compressão Automática)</span>
             </>
           )}
         </button>
       )}
 
-      {/* Info sobre limites */}
-      <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
-        <p>
-          <strong>Limites e recomendações:</strong>
+      {/* Ferramentas de Compressão - Agora opcional */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <h4 className="font-medium text-gray-700 mb-3">🛠️ Ferramentas Externas (Opcional)</h4>
+        <p className="text-sm text-gray-600 mb-3">
+          Com a compressão automática ativada, estas ferramentas são opcionais. Use apenas se quiser pré-comprimir:
         </p>
-        <p>• Tamanho máximo: 20MB</p>
-        <p>• Recomendado: até 10MB para melhor performance</p>
-        <p>• Arquivos grandes podem demorar vários minutos</p>
-        <p>• Mantenha a página aberta durante todo o upload</p>
-        <p>• Se falhar, tente comprimir o PDF primeiro</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <a
+            href="https://www.ilovepdf.com/compress_pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center space-x-2 text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            <ExternalLink className="h-4 w-4" />
+            <span>ILovePDF</span>
+          </a>
+          <a
+            href="https://smallpdf.com/compress-pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center space-x-2 text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            <ExternalLink className="h-4 w-4" />
+            <span>SmallPDF</span>
+          </a>
+        </div>
+      </div>
+
+      {/* Info sobre compressão automática */}
+      <div className="text-xs text-gray-500 bg-green-50 p-3 rounded-lg border border-green-200">
+        <p>
+          <strong>🚀 Compressão Automática:</strong>
+        </p>
+        <p>• PDFs grandes são automaticamente otimizados no servidor</p>
+        <p>• Reduz tamanho mantendo qualidade visual</p>
+        <p>• Funciona com qualquer tamanho de arquivo inicial</p>
+        <p>• Processo transparente - você só faz upload normalmente</p>
       </div>
     </div>
   )

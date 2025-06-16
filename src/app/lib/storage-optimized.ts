@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
 import { localCache, CACHE_CONFIGS } from "./local-cache"
+import { PDFCompressor } from "./pdf-compressor"
 
 // Configurações existentes
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -48,6 +49,9 @@ export interface WeeklyPdf {
   week: string
   year: number
   file_path: string
+  original_size?: number
+  compressed_size?: number
+  compression_ratio?: number
 }
 
 // ===== PRODUTOS COM CACHE =====
@@ -360,29 +364,55 @@ export function getOptimizedImageSrc(url: string): string {
   }
 }
 
-// ===== FUNÇÕES EXISTENTES (mantidas para compatibilidade) =====
+// ===== PDFs COM COMPRESSÃO AUTOMÁTICA =====
 
 export async function addWeeklyPdf(file: File, name: string): Promise<WeeklyPdf> {
   try {
-    console.log("📄 Upload de PDF para Cloudflare R2...")
+    console.log("📄 [PDF] Iniciando processamento do PDF...")
 
+    const originalSize = file.size
+    const originalSizeMB = originalSize / (1024 * 1024)
+
+    console.log(`📊 [PDF] Arquivo original: ${file.name} (${originalSizeMB.toFixed(2)}MB)`)
+
+    // Comprimir PDF automaticamente se necessário
+    const compressionResult = await PDFCompressor.compressPDF(file)
+
+    const {
+      compressedBuffer,
+      originalSize: finalOriginalSize,
+      compressedSize,
+      compressionRatio,
+      wasCompressed,
+    } = compressionResult
+
+    if (wasCompressed) {
+      console.log(`✅ [PDF] PDF comprimido automaticamente:`)
+      console.log(`   Original: ${(finalOriginalSize / (1024 * 1024)).toFixed(2)}MB`)
+      console.log(`   Comprimido: ${(compressedSize / (1024 * 1024)).toFixed(2)}MB`)
+      console.log(`   Economia: ${((1 - compressionRatio) * 100).toFixed(1)}%`)
+    } else {
+      console.log(`ℹ️ [PDF] PDF não precisou de compressão`)
+    }
+
+    // Upload para R2
     const timestamp = Date.now()
     const fileName = `weekly-pdfs/pdf-${timestamp}.pdf`
 
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    console.log(`🚀 [PDF] Fazendo upload para R2: ${fileName}`)
 
     await r2Client.send(
       new PutObjectCommand({
         Bucket: BUCKET_NAME,
         Key: fileName,
-        Body: buffer,
+        Body: compressedBuffer,
         ContentType: "application/pdf",
       }),
     )
 
     const pdfUrl = `${R2_PUBLIC_URL}/${fileName}`
 
+    // Salvar metadata no Supabase
     const now = new Date()
     const newPdf: WeeklyPdf = {
       id: timestamp.toString(),
@@ -392,6 +422,9 @@ export async function addWeeklyPdf(file: File, name: string): Promise<WeeklyPdf>
       week: `${now.getDate()}/${now.getMonth() + 1}`,
       year: now.getFullYear(),
       file_path: fileName,
+      original_size: finalOriginalSize,
+      compressed_size: compressedSize,
+      compression_ratio: compressionRatio,
     }
 
     const { error } = await supabase.from("weekly_pdfs").insert([newPdf])
@@ -401,10 +434,15 @@ export async function addWeeklyPdf(file: File, name: string): Promise<WeeklyPdf>
     // Invalidar cache
     localCache.remove(CACHE_CONFIGS.WEEKLY_PDFS.key)
 
-    console.log("✅ PDF salvo:", newPdf.name)
+    console.log("✅ [PDF] PDF processado e salvo com sucesso:", newPdf.name)
+
+    if (wasCompressed) {
+      console.log(`💾 [PDF] Economia de espaço: ${((1 - compressionRatio) * 100).toFixed(1)}%`)
+    }
+
     return newPdf
   } catch (error) {
-    console.error("❌ Erro no upload de PDF:", error)
+    console.error("❌ Erro no processamento de PDF:", error)
     throw error
   }
 }
