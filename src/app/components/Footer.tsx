@@ -132,7 +132,7 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="border-t border-gray-700 mt-8 sm:mt-12 pt-6 sm:pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <p className="text-gray-300 text-xs sm:text-sm">© 2025 Papelaria Coutyfil. Todos os direitos reservados.</p>
+            <p className="text-gray-300 text-xs sm:text-sm">© 2025 Coutyfil - Supermercado. Todos os direitos reservados.</p>
           </div>
         </div>
       </div>
