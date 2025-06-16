@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-export const dynamic = "force_dynamic"
+export const dynamic = "force-dynamic" // Corrigido: era "force_dynamic"
 export const maxDuration = 60 // Máximo permitido no Vercel Hobby
 export const runtime = "nodejs"
 

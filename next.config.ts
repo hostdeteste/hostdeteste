@@ -9,14 +9,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // CONFIGURAÇÃO CRÍTICA PARA UPLOADS GRANDES
-  experimental: {
-    serverComponentsExternalPackages: ["@aws-sdk/client-s3"],
-    // Aumentar limite de body para 20MB
-    serverActions: {
-      bodySizeLimit: "20mb",
-    },
-  },
+  // Configuração corrigida para Next.js 15
+  serverExternalPackages: ["@aws-sdk/client-s3"],
 }
 
 export default nextConfig
