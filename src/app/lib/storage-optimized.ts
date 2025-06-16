@@ -1,27 +1,41 @@
 import { createClient } from "@supabase/supabase-js"
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
 import { localCache, CACHE_CONFIGS } from "./local-cache"
-import { PDFCompressor } from "./pdf-compressor"
 
-// Configurações existentes
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+// Configurações com validação
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-// Verificar se as variáveis existem
+console.log("🔧 [STORAGE] Inicializando configurações...")
+console.log("   Supabase URL:", !!supabaseUrl)
+console.log("   Supabase Key:", !!supabaseServiceKey)
+console.log("   R2 Account ID:", !!process.env.CLOUDFLARE_R2_ACCOUNT_ID)
+console.log("   R2 Access Key:", !!process.env.CLOUDFLARE_R2_ACCESS_KEY_ID)
+console.log("   R2 Secret Key:", !!process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY)
+
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error("❌ [STORAGE] Variáveis Supabase não configuradas:")
-  console.error("   NEXT_PUBLIC_SUPABASE_URL:", !!supabaseUrl)
-  console.error("   SUPABASE_SERVICE_ROLE_KEY:", !!supabaseServiceKey)
+  throw new Error("Configurações Supabase não encontradas")
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+// Configuração R2 com validação
+const r2Config = {
+  accountId: process.env.CLOUDFLARE_R2_ACCOUNT_ID,
+  accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID,
+  secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY,
+}
+
+if (!r2Config.accountId || !r2Config.accessKeyId || !r2Config.secretAccessKey) {
+  throw new Error("Configurações Cloudflare R2 não encontradas")
+}
+
 const r2Client = new S3Client({
   region: "auto",
-  endpoint: `https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  endpoint: `https://${r2Config.accountId}.r2.cloudflarestorage.com`,
   credentials: {
-    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
+    accessKeyId: r2Config.accessKeyId,
+    secretAccessKey: r2Config.secretAccessKey,
   },
 })
 
@@ -54,8 +68,137 @@ export interface WeeklyPdf {
   compression_ratio?: number
 }
 
-// ===== PRODUTOS COM CACHE =====
+// ===== FUNÇÃO DE UPLOAD DE PDF COM DEBUG =====
 
+export async function addWeeklyPdf(file: File, name: string): Promise<WeeklyPdf> {
+  console.log("📄 [STORAGE] === INÍCIO addWeeklyPdf ===")
+  console.log(`📊 [STORAGE] Parâmetros: file=${file.name} (${file.size} bytes), name="${name}"`)
+
+  try {
+    // 1. Validações iniciais
+    if (!file || file.size === 0) {
+      throw new Error("Arquivo inválido ou vazio")
+    }
+
+    if (!name || name.trim() === "") {
+      throw new Error("Nome é obrigatório")
+    }
+
+    // 2. Preparar dados para upload
+    const timestamp = Date.now()
+    const fileName = `weekly-pdfs/pdf-${timestamp}.pdf`
+    const now = new Date()
+
+    console.log(`📂 [STORAGE] Preparando upload: ${fileName}`)
+
+    // 3. Converter arquivo para buffer
+    console.log("🔄 [STORAGE] Convertendo arquivo para buffer...")
+    let arrayBuffer: ArrayBuffer
+    try {
+      arrayBuffer = await file.arrayBuffer()
+      console.log(`✅ [STORAGE] Buffer criado: ${arrayBuffer.byteLength} bytes`)
+    } catch (bufferError) {
+      console.error("❌ [STORAGE] Erro ao criar buffer:", bufferError)
+      throw new Error(
+        `Erro ao processar arquivo: ${bufferError instanceof Error ? bufferError.message : "Erro desconhecido"}`,
+      )
+    }
+
+    const buffer = Buffer.from(arrayBuffer)
+
+    // 4. Upload para R2
+    console.log("☁️ [STORAGE] Iniciando upload para Cloudflare R2...")
+    try {
+      const uploadCommand = new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: fileName,
+        Body: buffer,
+        ContentType: "application/pdf",
+        ContentLength: buffer.length,
+      })
+
+      console.log(`📤 [STORAGE] Executando upload para bucket: ${BUCKET_NAME}`)
+      await r2Client.send(uploadCommand)
+      console.log("✅ [STORAGE] Upload para R2 concluído")
+    } catch (r2Error) {
+      console.error("❌ [STORAGE] Erro no upload R2:", r2Error)
+      throw new Error(`Erro no upload para R2: ${r2Error instanceof Error ? r2Error.message : "Erro desconhecido"}`)
+    }
+
+    const pdfUrl = `${R2_PUBLIC_URL}/${fileName}`
+    console.log(`🔗 [STORAGE] URL gerada: ${pdfUrl}`)
+
+    // 5. Criar registro no Supabase
+    const newPdf: WeeklyPdf = {
+      id: timestamp.toString(),
+      name: name.trim(),
+      url: pdfUrl,
+      uploadDate: now.toISOString(),
+      week: `${now.getDate()}/${now.getMonth() + 1}`,
+      year: now.getFullYear(),
+      file_path: fileName,
+      original_size: file.size,
+      compressed_size: file.size,
+      compression_ratio: 1,
+    }
+
+    console.log("💾 [STORAGE] Salvando registro no Supabase...")
+    console.log("📋 [STORAGE] Dados do registro:", {
+      id: newPdf.id,
+      name: newPdf.name,
+      url: newPdf.url,
+      file_path: newPdf.file_path,
+    })
+
+    try {
+      const { data, error } = await supabase.from("weekly_pdfs").insert([newPdf]).select().single()
+
+      if (error) {
+        console.error("❌ [STORAGE] Erro Supabase:", error)
+        throw new Error(`Erro Supabase: ${error.message} (Code: ${error.code})`)
+      }
+
+      console.log("✅ [STORAGE] Registro salvo no Supabase:", data?.id)
+    } catch (supabaseError) {
+      console.error("❌ [STORAGE] Erro ao salvar no Supabase:", supabaseError)
+
+      // Tentar limpar o arquivo do R2 se o Supabase falhar
+      try {
+        console.log("🧹 [STORAGE] Tentando limpar arquivo do R2...")
+        await r2Client.send(
+          new DeleteObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: fileName,
+          }),
+        )
+        console.log("✅ [STORAGE] Arquivo removido do R2")
+      } catch (cleanupError) {
+        console.error("⚠️ [STORAGE] Erro ao limpar R2:", cleanupError)
+      }
+
+      throw new Error(
+        `Erro ao salvar no banco de dados: ${supabaseError instanceof Error ? supabaseError.message : "Erro desconhecido"}`,
+      )
+    }
+
+    // 6. Invalidar cache
+    console.log("🗑️ [STORAGE] Invalidando cache...")
+    if (typeof window !== "undefined") {
+      localCache.remove(CACHE_CONFIGS.WEEKLY_PDFS.key)
+    }
+
+    console.log("✅ [STORAGE] PDF processado com sucesso!")
+    console.log("📄 [STORAGE] === FIM addWeeklyPdf ===")
+
+    return newPdf
+  } catch (error) {
+    console.error("❌ [STORAGE] Erro geral em addWeeklyPdf:", error)
+    console.log("📄 [STORAGE] === FIM addWeeklyPdf (COM ERRO) ===")
+    throw error
+  }
+}
+
+// Resto das funções existentes mantidas...
 export async function loadProductsFromCloud(): Promise<Product[]> {
   try {
     console.log("🔄 [PRODUCTS] Verificando cache local...")
@@ -361,89 +504,6 @@ export function getOptimizedImageSrc(url: string): string {
     return imageCache[url] || url
   } catch {
     return url
-  }
-}
-
-// ===== PDFs COM COMPRESSÃO AUTOMÁTICA =====
-
-export async function addWeeklyPdf(file: File, name: string): Promise<WeeklyPdf> {
-  try {
-    console.log("📄 [PDF] Iniciando processamento do PDF...")
-
-    const originalSize = file.size
-    const originalSizeMB = originalSize / (1024 * 1024)
-
-    console.log(`📊 [PDF] Arquivo original: ${file.name} (${originalSizeMB.toFixed(2)}MB)`)
-
-    // Comprimir PDF automaticamente se necessário
-    const compressionResult = await PDFCompressor.compressPDF(file)
-
-    const {
-      compressedBuffer,
-      originalSize: finalOriginalSize,
-      compressedSize,
-      compressionRatio,
-      wasCompressed,
-    } = compressionResult
-
-    if (wasCompressed) {
-      console.log(`✅ [PDF] PDF comprimido automaticamente:`)
-      console.log(`   Original: ${(finalOriginalSize / (1024 * 1024)).toFixed(2)}MB`)
-      console.log(`   Comprimido: ${(compressedSize / (1024 * 1024)).toFixed(2)}MB`)
-      console.log(`   Economia: ${((1 - compressionRatio) * 100).toFixed(1)}%`)
-    } else {
-      console.log(`ℹ️ [PDF] PDF não precisou de compressão`)
-    }
-
-    // Upload para R2
-    const timestamp = Date.now()
-    const fileName = `weekly-pdfs/pdf-${timestamp}.pdf`
-
-    console.log(`🚀 [PDF] Fazendo upload para R2: ${fileName}`)
-
-    await r2Client.send(
-      new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: fileName,
-        Body: compressedBuffer,
-        ContentType: "application/pdf",
-      }),
-    )
-
-    const pdfUrl = `${R2_PUBLIC_URL}/${fileName}`
-
-    // Salvar metadata no Supabase
-    const now = new Date()
-    const newPdf: WeeklyPdf = {
-      id: timestamp.toString(),
-      name,
-      url: pdfUrl,
-      uploadDate: now.toISOString(),
-      week: `${now.getDate()}/${now.getMonth() + 1}`,
-      year: now.getFullYear(),
-      file_path: fileName,
-      original_size: finalOriginalSize,
-      compressed_size: compressedSize,
-      compression_ratio: compressionRatio,
-    }
-
-    const { error } = await supabase.from("weekly_pdfs").insert([newPdf])
-
-    if (error) throw error
-
-    // Invalidar cache
-    localCache.remove(CACHE_CONFIGS.WEEKLY_PDFS.key)
-
-    console.log("✅ [PDF] PDF processado e salvo com sucesso:", newPdf.name)
-
-    if (wasCompressed) {
-      console.log(`💾 [PDF] Economia de espaço: ${((1 - compressionRatio) * 100).toFixed(1)}%`)
-    }
-
-    return newPdf
-  } catch (error) {
-    console.error("❌ Erro no processamento de PDF:", error)
-    throw error
   }
 }
 
