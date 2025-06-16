@@ -2,7 +2,15 @@
 
 import type React from "react"
 import { useState, useRef } from "react"
-import { Upload, FileText, Loader2, CheckCircle, AlertCircle, FileArchiveIcon as Compress } from "lucide-react"
+import {
+  Upload,
+  FileText,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  FileArchiveIcon as Compress,
+  ExternalLink,
+} from "lucide-react"
 import { ClientPDFCompressor } from "@/app/lib/client-pdf-compressor"
 
 interface PdfUploadProps {
@@ -22,6 +30,7 @@ export default function PdfUpload({ onUploadSuccess }: PdfUploadProps) {
   const [isCompressing, setIsCompressing] = useState(false)
   const [uploadProgress, setUploadProgress] = useState("")
   const [compressionInfo, setCompressionInfo] = useState<CompressionInfo | null>(null)
+  const [showCompressionTools, setShowCompressionTools] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const nameInputRef = useRef<HTMLInputElement>(null)
 
@@ -47,6 +56,7 @@ export default function PdfUpload({ onUploadSuccess }: PdfUploadProps) {
     setIsUploading(true)
     setIsCompressing(false)
     setCompressionInfo(null)
+    setShowCompressionTools(false)
     setUploadProgress("Preparando upload...")
 
     try {
@@ -56,7 +66,7 @@ export default function PdfUpload({ onUploadSuccess }: PdfUploadProps) {
       // Verificar se precisa de compressão
       if (ClientPDFCompressor.needsCompression(file.size)) {
         setIsCompressing(true)
-        setUploadProgress(`Comprimindo PDF de ${originalSizeMB.toFixed(1)}MB...`)
+        setUploadProgress(`Comprimindo PDF de ${originalSizeMB.toFixed(1)}MB... (pode demorar alguns segundos)`)
 
         try {
           const compressionResult = await ClientPDFCompressor.compressPDF(file)
@@ -79,9 +89,8 @@ export default function PdfUpload({ onUploadSuccess }: PdfUploadProps) {
           }
         } catch (compressionError) {
           console.error("Erro na compressão:", compressionError)
-          throw new Error(
-            `Erro na compressão: ${compressionError instanceof Error ? compressionError.message : "Erro desconhecido"}`,
-          )
+          setShowCompressionTools(true)
+          throw new Error(`${compressionError instanceof Error ? compressionError.message : "Erro na compressão"}`)
         }
 
         setIsCompressing(false)
@@ -124,6 +133,7 @@ export default function PdfUpload({ onUploadSuccess }: PdfUploadProps) {
         setIsUploading(false)
         setUploadProgress("")
         setCompressionInfo(null)
+        setShowCompressionTools(false)
       }, 3000)
     } catch (error) {
       console.error("Erro no upload:", error)
@@ -133,7 +143,7 @@ export default function PdfUpload({ onUploadSuccess }: PdfUploadProps) {
         setIsUploading(false)
         setUploadProgress("")
         setCompressionInfo(null)
-      }, 5000)
+      }, 8000)
     }
   }
 
@@ -146,7 +156,7 @@ export default function PdfUpload({ onUploadSuccess }: PdfUploadProps) {
           <h2 className="text-xl font-semibold text-gray-900">Upload de PDF Semanal</h2>
         </div>
         <p className="text-sm text-gray-600 mt-1">
-          Faça upload de PDFs com compressão automática. Arquivos grandes são automaticamente otimizados.
+          Faça upload de PDFs com compressão automática inteligente. Arquivos grandes são otimizados automaticamente.
         </p>
       </div>
 
@@ -203,7 +213,15 @@ export default function PdfUpload({ onUploadSuccess }: PdfUploadProps) {
 
           {/* Status do upload */}
           {uploadProgress && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div
+              className={`border rounded-lg p-4 ${
+                uploadProgress.includes("sucesso")
+                  ? "bg-green-50 border-green-200"
+                  : uploadProgress.includes("Erro")
+                    ? "bg-red-50 border-red-200"
+                    : "bg-blue-50 border-blue-200"
+              }`}
+            >
               <div className="flex items-center gap-2">
                 {isCompressing ? (
                   <Compress className="h-4 w-4 text-blue-600 animate-pulse" />
@@ -231,6 +249,42 @@ export default function PdfUpload({ onUploadSuccess }: PdfUploadProps) {
             </div>
           )}
 
+          {/* Ferramentas de compressão externa (mostrar quando falha) */}
+          {showCompressionTools && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-orange-800 font-medium mb-3">
+                <AlertCircle className="h-4 w-4" />
+                PDF muito complexo - Use compressão externa
+              </div>
+              <p className="text-sm text-orange-700 mb-3">
+                Este PDF é muito complexo para compressão automática. Use uma dessas ferramentas gratuitas:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                <a
+                  href="https://www.ilovepdf.com/compress_pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-orange-700 hover:text-orange-900 transition-colors p-2 bg-white rounded border"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  <span>ILovePDF (Recomendado)</span>
+                </a>
+                <a
+                  href="https://smallpdf.com/compress-pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-orange-700 hover:text-orange-900 transition-colors p-2 bg-white rounded border"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  <span>SmallPDF</span>
+                </a>
+              </div>
+              <p className="text-xs text-orange-600 mt-2">
+                💡 Dica: Use "Compressão Extrema" para reduzir ao máximo o tamanho.
+              </p>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={isUploading}
@@ -239,7 +293,7 @@ export default function PdfUpload({ onUploadSuccess }: PdfUploadProps) {
             {isCompressing ? (
               <>
                 <Compress className="h-4 w-4 animate-pulse" />
-                Comprimindo PDF...
+                Comprimindo PDF... (aguarde)
               </>
             ) : isUploading ? (
               <>
@@ -255,14 +309,14 @@ export default function PdfUpload({ onUploadSuccess }: PdfUploadProps) {
           </button>
         </form>
 
-        {/* Informações sobre limites */}
+        {/* Informações sobre compressão inteligente */}
         <div className="mt-6 text-xs text-gray-500 bg-gray-50 rounded-lg p-3">
-          <div className="font-medium mb-1">ℹ️ Informações:</div>
+          <div className="font-medium mb-1">🧠 Compressão Inteligente:</div>
           <ul className="space-y-1">
-            <li>• PDFs grandes são automaticamente comprimidos</li>
-            <li>• Limite máximo: 4MB após compressão</li>
-            <li>• Formatos aceitos: apenas PDF</li>
-            <li>• Compressão acontece no seu navegador (seguro)</li>
+            <li>• Múltiplas estratégias de compressão automática</li>
+            <li>• Redução de escala e otimização de páginas</li>
+            <li>• Remoção de elementos desnecessários</li>
+            <li>• Fallback para ferramentas externas se necessário</li>
           </ul>
         </div>
       </div>
