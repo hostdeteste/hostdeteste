@@ -2,13 +2,15 @@
 
 import { Star, ChevronDown, FileText } from "lucide-react"
 import { useWeeklyPdfs } from "@/app/hooks/useWeeklyPdfs"
-import { usePdfCache } from "@/app/lib/pdf-cache"
+import { useFullPdfCache } from "@/app/lib/pdf-cache-full"
 import { useEffect, useState } from "react"
 
 export default function Hero() {
   const { latestPdf, loading } = useWeeklyPdfs()
-  const { getProxyUrl } = usePdfCache()
+  const { cachePdf, getCachedPdf, isPdfCached, preloadPdf } = useFullPdfCache()
   const [isMobile, setIsMobile] = useState(false)
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [isLoadingPdf, setIsLoadingPdf] = useState(false)
 
   // Detectar mobile apenas uma vez
   useEffect(() => {
@@ -20,8 +22,50 @@ export default function Hero() {
     return () => window.removeEventListener("resize", debouncedResize)
   }, [])
 
-  // URL do PDF otimizada
-  const pdfUrlToUse = latestPdf ? getProxyUrl(latestPdf.url) : null
+  // Carregar PDF do cache ou baixar
+  useEffect(() => {
+    if (!latestPdf) return
+
+    const loadPdf = async () => {
+      try {
+        setIsLoadingPdf(true)
+
+        // Verificar se já está em cache
+        if (isPdfCached(latestPdf.url)) {
+          console.log("📄 [HERO] PDF encontrado no cache")
+          const cachedUrl = await getCachedPdf(latestPdf.url)
+          if (cachedUrl) {
+            setPdfUrl(cachedUrl)
+            setIsLoadingPdf(false)
+            return
+          }
+        }
+
+        // Se não está em cache, baixar e cachear
+        console.log("📥 [HERO] Baixando e cacheando PDF...")
+        const newPdfUrl = await cachePdf(latestPdf.url, latestPdf.name)
+        setPdfUrl(newPdfUrl)
+      } catch (error) {
+        console.error("❌ [HERO] Erro ao carregar PDF:", error)
+        // Fallback para proxy
+        setPdfUrl(`/api/pdf-proxy?url=${encodeURIComponent(latestPdf.url)}`)
+      } finally {
+        setIsLoadingPdf(false)
+      }
+    }
+
+    loadPdf()
+  }, [latestPdf, cachePdf, getCachedPdf, isPdfCached])
+
+  // Pré-carregar PDF em background quando disponível
+  useEffect(() => {
+    if (latestPdf && !isPdfCached(latestPdf.url)) {
+      // Pré-carregar após 2 segundos para não interferir com o carregamento inicial
+      setTimeout(() => {
+        preloadPdf(latestPdf.url, latestPdf.name)
+      }, 2000)
+    }
+  }, [latestPdf, isPdfCached, preloadPdf])
 
   return (
     <section
@@ -58,8 +102,14 @@ export default function Hero() {
           <div className="relative flex justify-center mt-8 md:mt-0">
             {loading ? (
               <PdfPreviewSkeleton isMobile={isMobile} />
-            ) : latestPdf && pdfUrlToUse ? (
-              <PdfPreview latestPdf={latestPdf} pdfUrl={pdfUrlToUse} isMobile={isMobile} />
+            ) : latestPdf && pdfUrl ? (
+              <PdfPreview
+                latestPdf={latestPdf}
+                pdfUrl={pdfUrl}
+                isMobile={isMobile}
+                isLoadingPdf={isLoadingPdf}
+                isCached={isPdfCached(latestPdf.url)}
+              />
             ) : (
               <PdfPreviewFallback isMobile={isMobile} />
             )}
@@ -99,9 +149,7 @@ function HeroContent({ latestPdf }: { latestPdf: any }) {
           Conheça a nossa <span className="text-red-600">seleção</span>
         </span>
         <br />
-        <span>
-          de produtos criada a pensar em si! 
-        </span>
+        <span>de produtos criada a pensar em si!</span>
       </h1>
       <div className="text-xl sm:text-2xl text-gray-700 leading-relaxed">
         <p>No nosso folheto encontra:</p>
@@ -142,19 +190,36 @@ function PdfPreviewSkeleton({ isMobile }: { isMobile: boolean }) {
   )
 }
 
-function PdfPreview({ latestPdf, pdfUrl, isMobile }: { latestPdf: any; pdfUrl: string; isMobile: boolean }) {
+function PdfPreview({
+  latestPdf,
+  pdfUrl,
+  isMobile,
+  isLoadingPdf,
+  isCached,
+}: {
+  latestPdf: any
+  pdfUrl: string
+  isMobile: boolean
+  isLoadingPdf: boolean
+  isCached: boolean
+}) {
   return (
     <div className="relative w-full max-w-[460px]">
-      {/* Header */}
+      {/* Header com indicador de cache */}
       <div className="bg-gradient-to-r from-red-500 to-green-500 text-white p-2 sm:p-3 rounded-xl mb-4 shadow-lg relative z-20">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 sm:space-x-3">
             <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
             <div>
               <h3 className="font-bold text-sm sm:text-base line-clamp-1">{latestPdf.name}</h3>
-              {new Date(latestPdf.uploadDate) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) && (
-                <span className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">NOVO!</span>
-              )}
+              <div className="flex items-center space-x-2">
+                {new Date(latestPdf.uploadDate) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) && (
+                  <span className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">NOVO!</span>
+                )}
+                {isCached && (
+                  <span className="bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-bold">📱 CACHE</span>
+                )}
+              </div>
             </div>
           </div>
           <a
@@ -163,7 +228,7 @@ function PdfPreview({ latestPdf, pdfUrl, isMobile }: { latestPdf: any; pdfUrl: s
             rel="noopener noreferrer"
             className="bg-white/20 hover:bg-white/30 px-2 py-1 sm:px-3 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm font-medium"
           >
-            Abrir PDF
+            {isLoadingPdf ? "Carregando..." : "Abrir PDF"}
           </a>
         </div>
       </div>
@@ -181,18 +246,29 @@ function PdfPreview({ latestPdf, pdfUrl, isMobile }: { latestPdf: any; pdfUrl: s
           <div className="bg-black rounded-2xl p-1 h-full w-full relative overflow-hidden">
             <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="block relative group h-full w-full">
               <div className="relative bg-white rounded-xl shadow-lg h-full w-full overflow-hidden">
-                <iframe
-                  src={`${pdfUrl}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
-                  className="w-full h-full"
-                  style={{ border: "none", pointerEvents: "none" }}
-                  loading="lazy"
-                />
+                {isLoadingPdf ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto mb-2"></div>
+                      <div className="text-gray-600 text-sm">
+                        {isCached ? "Carregando do cache..." : "Baixando PDF..."}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <iframe
+                    src={`${pdfUrl}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
+                    className="w-full h-full"
+                    style={{ border: "none", pointerEvents: "none" }}
+                    loading="lazy"
+                  />
+                )}
 
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300 flex items-center justify-center rounded-xl">
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white/95 backdrop-blur-sm px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg shadow-lg">
                     <div className="flex items-center space-x-2 text-gray-800 font-medium text-xs sm:text-sm">
                       <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
-                      <span>Clique para abrir PDF completo</span>
+                      <span>{isCached ? "PDF em cache - Clique para abrir" : "Clique para abrir PDF completo"}</span>
                     </div>
                   </div>
                 </div>
