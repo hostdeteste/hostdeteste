@@ -25,7 +25,8 @@ class FullPdfCache {
   private static instance: FullPdfCache
   private readonly CACHE_PREFIX = "pdf_full_"
   private readonly CACHE_DURATION = 7 * 24 * 60 * 60 * 1000 // 7 dias
-  private readonly MAX_CACHE_SIZE = 50 * 1024 * 1024 // 50MB máximo
+  private readonly MAX_CACHE_SIZE = 10 * 1024 * 1024 // 10MB máximo (reduzido)
+  private readonly MAX_PDF_SIZE = 5 * 1024 * 1024 // 5MB por PDF (reduzido)
   private readonly COMPRESSION_ENABLED = true
 
   static getInstance(): FullPdfCache {
@@ -43,12 +44,36 @@ class FullPdfCache {
   // Gerar chave única para o PDF
   private generateKey(url: string): string {
     const cleanUrl = url.replace(/[^a-zA-Z0-9]/g, "_")
-    return `${this.CACHE_PREFIX}${cleanUrl.slice(-32)}`
+    return `${this.CACHE_PREFIX}${cleanUrl.slice(-20)}` // Chave mais curta
   }
 
   // Verificar se o cache é válido
   private isValidCache(data: FullPdfCacheData): boolean {
     return Date.now() < data.expiresAt
+  }
+
+  // Verificar espaço disponível no localStorage
+  private getStorageUsage(): { used: number; available: number } {
+    if (!this.isClient()) return { used: 0, available: 0 }
+
+    let used = 0
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key) {
+          const value = localStorage.getItem(key)
+          if (value) {
+            used += key.length + value.length
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("⚠️ [PDF-CACHE] Erro ao calcular uso do storage:", error)
+    }
+
+    // Estimar espaço disponível (localStorage geralmente tem 5-10MB)
+    const estimated = 5 * 1024 * 1024 // 5MB estimado
+    return { used, available: Math.max(0, estimated - used) }
   }
 
   // Comprimir PDF usando técnicas básicas
@@ -57,7 +82,7 @@ class FullPdfCache {
 
     try {
       // Para PDFs pequenos, não comprimir
-      if (blob.size < 1024 * 1024) return blob // < 1MB
+      if (blob.size < 512 * 1024) return blob // < 512KB
 
       console.log(`🗜️ [PDF-CACHE] Comprimindo PDF de ${(blob.size / 1024 / 1024).toFixed(2)}MB...`)
 
@@ -143,7 +168,7 @@ class FullPdfCache {
 
         // Remover até ficar abaixo do limite
         for (const entry of cacheEntries) {
-          if (totalSize <= this.MAX_CACHE_SIZE * 0.8) break // Deixar 20% de margem
+          if (totalSize <= this.MAX_CACHE_SIZE * 0.7) break // Deixar 30% de margem
 
           localStorage.removeItem(entry.key)
           totalSize -= entry.data.size
@@ -169,7 +194,7 @@ class FullPdfCache {
         return cached
       }
 
-      console.log(`📥 [PDF-CACHE] Baixando e cacheando PDF: ${name}`)
+      console.log(`📥 [PDF-CACHE] Baixando PDF: ${name}`)
 
       // Baixar o PDF
       const response = await fetch(this.getProxyUrl(url))
@@ -178,12 +203,21 @@ class FullPdfCache {
       }
 
       const originalBlob = await response.blob()
-      console.log(`📄 [PDF-CACHE] PDF baixado: ${(originalBlob.size / 1024 / 1024).toFixed(2)}MB`)
+      const sizeInMB = originalBlob.size / 1024 / 1024
 
-      // Verificar se o PDF não é muito grande
-      if (originalBlob.size > 10 * 1024 * 1024) {
-        // 10MB
-        console.warn(`⚠️ [PDF-CACHE] PDF muito grande (${(originalBlob.size / 1024 / 1024).toFixed(2)}MB), usando proxy`)
+      console.log(`📄 [PDF-CACHE] PDF baixado: ${sizeInMB.toFixed(2)}MB`)
+
+      // Verificar se o PDF não é muito grande para cachear
+      if (originalBlob.size > this.MAX_PDF_SIZE) {
+        console.warn(`⚠️ [PDF-CACHE] PDF muito grande (${sizeInMB.toFixed(2)}MB), usando apenas proxy`)
+        return this.getProxyUrl(url)
+      }
+
+      // Verificar espaço disponível
+      const { available } = this.getStorageUsage()
+      if (available < originalBlob.size * 2) {
+        // Precisa de 2x o tamanho (original + base64)
+        console.warn(`⚠️ [PDF-CACHE] Espaço insuficiente no localStorage, usando proxy`)
         return this.getProxyUrl(url)
       }
 
@@ -214,14 +248,25 @@ class FullPdfCache {
       // Limpar cache se necessário antes de adicionar
       await this.cleanupCacheIfNeeded()
 
-      // Salvar no localStorage
+      // Tentar salvar no localStorage com tratamento de erro
       const key = this.generateKey(url)
-      localStorage.setItem(key, JSON.stringify(cacheData))
+      try {
+        localStorage.setItem(key, JSON.stringify(cacheData))
+        console.log(`✅ [PDF-CACHE] PDF cacheado: ${name} (${sizeInMB.toFixed(2)}MB)`)
+      } catch (quotaError) {
+        console.warn(`⚠️ [PDF-CACHE] Quota excedida, limpando cache e tentando novamente...`)
 
-      console.log(`✅ [PDF-CACHE] PDF cacheado com sucesso: ${name}`)
-      console.log(
-        `📊 [PDF-CACHE] Tamanho: ${(compressedBlob.size / 1024 / 1024).toFixed(2)}MB${isCompressed ? " (comprimido)" : ""}`,
-      )
+        // Limpar todo o cache de PDFs e tentar novamente
+        this.clearAllCache()
+
+        try {
+          localStorage.setItem(key, JSON.stringify(cacheData))
+          console.log(`✅ [PDF-CACHE] PDF cacheado após limpeza: ${name}`)
+        } catch (finalError) {
+          console.warn(`⚠️ [PDF-CACHE] Impossível cachear PDF, usando proxy: ${finalError}`)
+          return this.getProxyUrl(url)
+        }
+      }
 
       // Retornar URL do blob para uso imediato
       return URL.createObjectURL(await this.decompressPdfBlob(compressedBlob, isCompressed))
