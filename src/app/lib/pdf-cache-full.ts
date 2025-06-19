@@ -223,8 +223,8 @@ class FullPdfCache {
       }
       return blob
     } catch (error) {
-      console.warn("⚠️ [PDF-CACHE] Erro na descompressão:", error)
-      return blob
+      console.warn("⚠️ [PDF-CACHE] Erro na descompressão, usando blob original:", error)
+      return blob // Retornar o blob original em caso de erro
     }
   }
 
@@ -384,8 +384,14 @@ class FullPdfCache {
         console.log(`✅ [PDF-CACHE] PDF recuperado do localStorage: ${cacheData.name}`)
       }
 
-      // Descomprimir se necessário
-      const originalBlob = await this.decompressPdfBlob(blob, this.COMPRESSION_ENABLED)
+      // Descomprimir se necessário (com fallback)
+      let originalBlob: Blob
+      try {
+        originalBlob = await this.decompressPdfBlob(blob, this.COMPRESSION_ENABLED)
+      } catch (error) {
+        console.warn("⚠️ [PDF-CACHE] Usando blob sem descompressão:", error)
+        originalBlob = blob
+      }
 
       // Criar URL do blob
       const blobUrl = URL.createObjectURL(originalBlob)
