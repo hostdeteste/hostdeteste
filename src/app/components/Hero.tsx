@@ -209,9 +209,6 @@ function PdfPreview({
                 {new Date(latestPdf.uploadDate) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) && (
                   <span className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">NOVO!</span>
                 )}
-                {isCached && (
-                  <span className="bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-bold">📱 CACHE</span>
-                )}
               </div>
             </div>
           </div>
