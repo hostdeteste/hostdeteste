@@ -31,20 +31,23 @@ export default function Hero() {
         setIsLoadingPdf(true)
 
         // Verificar se já está em cache
-        if (isPdfCached(latestPdf.url)) {
+        const cachedUrl = await getCachedPdf(latestPdf.url)
+        if (cachedUrl) {
           console.log("📄 [HERO] PDF encontrado no cache")
-          const cachedUrl = await getCachedPdf(latestPdf.url)
-          if (cachedUrl) {
-            setPdfUrl(cachedUrl)
-            setIsLoadingPdf(false)
-            return
-          }
+          setPdfUrl(cachedUrl)
+          setIsLoadingPdf(false)
+          return
         }
 
-        // Se não está em cache, baixar e cachear
-        console.log("📥 [HERO] Baixando e cacheando PDF...")
-        const newPdfUrl = await cachePdf(latestPdf.url, latestPdf.name)
-        setPdfUrl(newPdfUrl)
+        // Se não está em cache, usar proxy diretamente (não cachear automaticamente)
+        console.log("📄 [HERO] Usando proxy para PDF")
+        const proxyUrl = `/api/pdf-proxy?url=${encodeURIComponent(latestPdf.url)}`
+        setPdfUrl(proxyUrl)
+
+        // Cachear em background sem bloquear a UI
+        setTimeout(() => {
+          cachePdf(latestPdf.url, latestPdf.name).catch(console.error)
+        }, 1000)
       } catch (error) {
         console.error("❌ [HERO] Erro ao carregar PDF:", error)
         // Fallback para proxy
@@ -55,17 +58,7 @@ export default function Hero() {
     }
 
     loadPdf()
-  }, [latestPdf, cachePdf, getCachedPdf, isPdfCached])
-
-  // Pré-carregar PDF em background quando disponível
-  useEffect(() => {
-    if (latestPdf && !isPdfCached(latestPdf.url)) {
-      // Pré-carregar após 2 segundos para não interferir com o carregamento inicial
-      setTimeout(() => {
-        preloadPdf(latestPdf.url, latestPdf.name)
-      }, 2000)
-    }
-  }, [latestPdf, isPdfCached, preloadPdf])
+  }, [latestPdf])
 
   return (
     <section
