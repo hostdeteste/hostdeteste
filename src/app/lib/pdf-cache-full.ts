@@ -1,12 +1,13 @@
-// Sistema de cache completo para PDFs - armazena o arquivo inteiro
+// Sistema de cache híbrido para PDFs - localStorage + IndexedDB
 interface FullPdfCacheData {
   url: string
   name: string
-  blob: string // PDF como base64
+  blob?: string // PDF como base64 (localStorage)
   size: number
   timestamp: number
   expiresAt: number
   lastAccessed: number
+  storage: "localStorage" | "indexedDB"
 }
 
 interface CacheStats {
@@ -18,6 +19,7 @@ interface CacheStats {
     age: string
     expiresIn: string
     lastAccessed: string
+    storage: string
   }>
 }
 
@@ -25,10 +27,13 @@ class FullPdfCache {
   private static instance: FullPdfCache
   private readonly CACHE_PREFIX = "pdf_full_"
   private readonly CACHE_DURATION = 7 * 24 * 60 * 60 * 1000 // 7 dias
-  private readonly MAX_CACHE_SIZE = 15 * 1024 * 1024 // 15MB máximo (mais generoso)
-  private readonly MAX_PDF_SIZE = 8 * 1024 * 1024 // 8MB por PDF (bem generoso)
+  private readonly MAX_LOCALSTORAGE_SIZE = 3 * 1024 * 1024 // 3MB para localStorage
+  private readonly MAX_PDF_SIZE = 20 * 1024 * 1024 // 20MB máximo total
   private readonly COMPRESSION_ENABLED = true
-  private storageCapacity: number | null = null
+  private readonly DB_NAME = "PdfCacheDB"
+  private readonly DB_VERSION = 1
+  private readonly STORE_NAME = "pdfs"
+  private db: IDBDatabase | null = null
 
   static getInstance(): FullPdfCache {
     if (!FullPdfCache.instance) {
@@ -39,13 +44,13 @@ class FullPdfCache {
 
   // Verificar se estamos no navegador
   private isClient(): boolean {
-    return typeof window !== "undefined" && typeof localStorage !== "undefined"
+    return typeof window !== "undefined" && typeof localStorage !== "undefined" && typeof indexedDB !== "undefined"
   }
 
   // Gerar chave única para o PDF
   private generateKey(url: string): string {
     const cleanUrl = url.replace(/[^a-zA-Z0-9]/g, "_")
-    return `${this.CACHE_PREFIX}${cleanUrl.slice(-12)}` // Chave bem curta
+    return `${this.CACHE_PREFIX}${cleanUrl.slice(-12)}`
   }
 
   // Verificar se o cache é válido
@@ -53,77 +58,120 @@ class FullPdfCache {
     return Date.now() < data.expiresAt
   }
 
-  // Detectar capacidade real do localStorage
-  private async detectStorageCapacity(): Promise<number> {
-    if (!this.isClient()) return 0
-    if (this.storageCapacity !== null) return this.storageCapacity
+  // Inicializar IndexedDB
+  private async initIndexedDB(): Promise<IDBDatabase> {
+    if (this.db) return this.db
 
-    console.log("🔍 [PDF-CACHE] Detectando capacidade do localStorage...")
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.DB_NAME, this.DB_VERSION)
 
-    try {
-      const testKey = "capacity_test"
-      let capacity = 0
-      const chunkSize = 100 * 1024 // 100KB chunks
-
-      // Limpar qualquer teste anterior
-      localStorage.removeItem(testKey)
-
-      // Testar incrementalmente
-      for (let size = chunkSize; size <= 50 * 1024 * 1024; size += chunkSize) {
-        try {
-          const testData = "x".repeat(size)
-          localStorage.setItem(testKey, testData)
-          capacity = size
-        } catch (e) {
-          // Atingiu o limite
-          break
-        }
+      request.onerror = () => {
+        console.error("❌ [PDF-CACHE] Erro ao abrir IndexedDB:", request.error)
+        reject(request.error)
       }
 
-      // Limpar teste
-      localStorage.removeItem(testKey)
+      request.onsuccess = () => {
+        this.db = request.result
+        console.log("✅ [PDF-CACHE] IndexedDB inicializado")
+        resolve(this.db)
+      }
 
-      // Converter para bytes (considerando UTF-16)
-      this.storageCapacity = capacity * 2
-      console.log(`✅ [PDF-CACHE] Capacidade detectada: ${(this.storageCapacity / 1024 / 1024).toFixed(2)}MB`)
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result
 
-      return this.storageCapacity
+        // Criar object store se não existir
+        if (!db.objectStoreNames.contains(this.STORE_NAME)) {
+          const store = db.createObjectStore(this.STORE_NAME, { keyPath: "key" })
+          store.createIndex("timestamp", "timestamp", { unique: false })
+          console.log("🔧 [PDF-CACHE] Object store criado no IndexedDB")
+        }
+      }
+    })
+  }
+
+  // Salvar PDF no IndexedDB
+  private async saveToIndexedDB(key: string, data: FullPdfCacheData, blob: Blob): Promise<void> {
+    const db = await this.initIndexedDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([this.STORE_NAME], "readwrite")
+      const store = transaction.objectStore(this.STORE_NAME)
+
+      const record = {
+        key,
+        metadata: data,
+        blob: blob,
+      }
+
+      const request = store.put(record)
+
+      request.onsuccess = () => {
+        console.log(`✅ [PDF-CACHE] PDF salvo no IndexedDB: ${data.name}`)
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error("❌ [PDF-CACHE] Erro ao salvar no IndexedDB:", request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  // Recuperar PDF do IndexedDB
+  private async getFromIndexedDB(key: string): Promise<{ metadata: FullPdfCacheData; blob: Blob } | null> {
+    try {
+      const db = await this.initIndexedDB()
+
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction([this.STORE_NAME], "readonly")
+        const store = transaction.objectStore(this.STORE_NAME)
+        const request = store.get(key)
+
+        request.onsuccess = () => {
+          if (request.result) {
+            resolve({
+              metadata: request.result.metadata,
+              blob: request.result.blob,
+            })
+          } else {
+            resolve(null)
+          }
+        }
+
+        request.onerror = () => {
+          console.error("❌ [PDF-CACHE] Erro ao recuperar do IndexedDB:", request.error)
+          reject(request.error)
+        }
+      })
     } catch (error) {
-      console.warn("⚠️ [PDF-CACHE] Erro ao detectar capacidade, usando padrão:", error)
-      this.storageCapacity = 5 * 1024 * 1024 // 5MB padrão
-      return this.storageCapacity
+      console.error("❌ [PDF-CACHE] Erro no IndexedDB:", error)
+      return null
     }
   }
 
-  // Calcular uso real do localStorage
-  private async getStorageUsage(): Promise<{ used: number; available: number; total: number }> {
-    if (!this.isClient()) return { used: 0, available: 0, total: 0 }
-
-    const total = await this.detectStorageCapacity()
-    let used = 0
-
+  // Limpar IndexedDB
+  private async clearIndexedDB(): Promise<void> {
     try {
-      // Calcular uso real
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key) {
-          const value = localStorage.getItem(key)
-          if (value) {
-            used += (key.length + value.length) * 2 // UTF-16 = 2 bytes por char
-          }
+      const db = await this.initIndexedDB()
+
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction([this.STORE_NAME], "readwrite")
+        const store = transaction.objectStore(this.STORE_NAME)
+        const request = store.clear()
+
+        request.onsuccess = () => {
+          console.log("🧹 [PDF-CACHE] IndexedDB limpo")
+          resolve()
         }
-      }
+
+        request.onerror = () => {
+          console.error("❌ [PDF-CACHE] Erro ao limpar IndexedDB:", request.error)
+          reject(request.error)
+        }
+      })
     } catch (error) {
-      console.warn("⚠️ [PDF-CACHE] Erro ao calcular uso do storage:", error)
+      console.error("❌ [PDF-CACHE] Erro ao limpar IndexedDB:", error)
     }
-
-    const available = Math.max(0, total - used)
-
-    console.log(
-      `📊 [PDF-CACHE] Storage: ${(used / 1024 / 1024).toFixed(2)}MB usado / ${(total / 1024 / 1024).toFixed(2)}MB total = ${(available / 1024 / 1024).toFixed(2)}MB disponível`,
-    )
-
-    return { used, available, total }
   }
 
   // Comprimir PDF usando técnicas básicas
@@ -136,7 +184,7 @@ class FullPdfCache {
 
       console.log(`🗜️ [PDF-CACHE] Comprimindo PDF de ${(blob.size / 1024 / 1024).toFixed(2)}MB...`)
 
-      // Usar CompressionStream se disponível (navegadores modernos)
+      // Usar CompressionStream se disponível
       if ("CompressionStream" in window) {
         const stream = new CompressionStream("gzip")
         const compressedStream = blob.stream().pipeThrough(stream)
@@ -180,40 +228,6 @@ class FullPdfCache {
     }
   }
 
-  // Limpar cache completamente
-  private async totalCleanup(): Promise<number> {
-    if (!this.isClient()) return 0
-
-    let freedSpace = 0
-    const keys: string[] = []
-
-    // Coletar todas as chaves de cache
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key?.startsWith(this.CACHE_PREFIX)) {
-        keys.push(key)
-      }
-    }
-
-    // Remover tudo
-    for (const key of keys) {
-      try {
-        const value = localStorage.getItem(key)
-        if (value) {
-          freedSpace += (key.length + value.length) * 2
-        }
-        localStorage.removeItem(key)
-      } catch (error) {
-        console.warn(`⚠️ [PDF-CACHE] Erro ao remover ${key}:`, error)
-      }
-    }
-
-    console.log(
-      `🧹 [PDF-CACHE] Limpeza total: ${keys.length} PDFs removidos, ${(freedSpace / 1024 / 1024).toFixed(2)}MB liberados`,
-    )
-    return freedSpace
-  }
-
   // Armazenar PDF completo no cache
   async cachePdf(url: string, name: string): Promise<string> {
     if (!this.isClient()) {
@@ -241,84 +255,70 @@ class FullPdfCache {
 
       console.log(`📄 [PDF-CACHE] PDF baixado: ${sizeInMB.toFixed(2)}MB`)
 
-      // Verificar se o PDF não é muito grande para cachear
+      // Verificar se o PDF não é muito grande
       if (originalBlob.size > this.MAX_PDF_SIZE) {
-        console.log(
-          `⚠️ [PDF-CACHE] PDF muito grande (${sizeInMB.toFixed(2)}MB > ${(this.MAX_PDF_SIZE / 1024 / 1024).toFixed(1)}MB), usando proxy`,
-        )
+        console.log(`⚠️ [PDF-CACHE] PDF muito grande (${sizeInMB.toFixed(2)}MB), usando proxy`)
         return this.getProxyUrl(url)
       }
 
       // Comprimir o PDF
       const { blob: compressedBlob, isCompressed } = await this.compressPdfBlob(originalBlob)
-
-      // Converter para base64
-      const reader = new FileReader()
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = reject
-      })
-      reader.readAsDataURL(compressedBlob)
-      const base64Data = await base64Promise
-
-      // Preparar dados do cache
-      const cacheData: FullPdfCacheData = {
-        url,
-        name,
-        blob: base64Data,
-        size: compressedBlob.size,
-        timestamp: Date.now(),
-        expiresAt: Date.now() + this.CACHE_DURATION,
-        lastAccessed: Date.now(),
-      }
+      const finalSizeInMB = compressedBlob.size / 1024 / 1024
 
       const key = this.generateKey(url)
-      const finalSize = (key.length + JSON.stringify(cacheData).length) * 2 // UTF-16
 
-      console.log(`📊 [PDF-CACHE] Tamanho final para armazenar: ${(finalSize / 1024 / 1024).toFixed(2)}MB`)
+      // Decidir onde armazenar baseado no tamanho
+      const useIndexedDB = compressedBlob.size > this.MAX_LOCALSTORAGE_SIZE
 
-      // Verificar espaço disponível
-      const { available } = await this.getStorageUsage()
+      console.log(
+        `📊 [PDF-CACHE] Tamanho final: ${finalSizeInMB.toFixed(2)}MB - usando ${useIndexedDB ? "IndexedDB" : "localStorage"}`,
+      )
 
-      // Se não há espaço suficiente, fazer limpeza total
-      if (available < finalSize) {
-        console.log(
-          `🧹 [PDF-CACHE] Espaço insuficiente (${(available / 1024 / 1024).toFixed(2)}MB < ${(finalSize / 1024 / 1024).toFixed(2)}MB), fazendo limpeza total...`,
-        )
-
-        await this.totalCleanup()
-
-        // Verificar novamente após limpeza
-        const { available: newAvailable } = await this.getStorageUsage()
-        console.log(`📊 [PDF-CACHE] Após limpeza total: ${(newAvailable / 1024 / 1024).toFixed(2)}MB disponível`)
-
-        if (newAvailable < finalSize) {
-          console.warn(
-            `⚠️ [PDF-CACHE] Ainda sem espaço após limpeza total (${(newAvailable / 1024 / 1024).toFixed(2)}MB < ${(finalSize / 1024 / 1024).toFixed(2)}MB), usando proxy`,
-          )
-          return this.getProxyUrl(url)
+      if (useIndexedDB) {
+        // Usar IndexedDB para PDFs grandes
+        const cacheData: FullPdfCacheData = {
+          url,
+          name,
+          size: compressedBlob.size,
+          timestamp: Date.now(),
+          expiresAt: Date.now() + this.CACHE_DURATION,
+          lastAccessed: Date.now(),
+          storage: "indexedDB",
         }
-      }
 
-      // Tentar salvar no localStorage
-      try {
+        await this.saveToIndexedDB(key, cacheData, compressedBlob)
+
+        // Salvar metadados no localStorage
         localStorage.setItem(key, JSON.stringify(cacheData))
-        console.log(
-          `✅ [PDF-CACHE] PDF cacheado com sucesso: ${name} (${(compressedBlob.size / 1024 / 1024).toFixed(2)}MB${isCompressed ? " comprimido" : ""})`,
-        )
 
-        // Verificar se realmente foi salvo
-        const verification = localStorage.getItem(key)
-        if (!verification) {
-          throw new Error("PDF não foi salvo corretamente")
+        console.log(`✅ [PDF-CACHE] PDF cacheado no IndexedDB: ${name} (${finalSizeInMB.toFixed(2)}MB)`)
+      } else {
+        // Usar localStorage para PDFs pequenos
+        const reader = new FileReader()
+        const base64Promise = new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+        })
+        reader.readAsDataURL(compressedBlob)
+        const base64Data = await base64Promise
+
+        const cacheData: FullPdfCacheData = {
+          url,
+          name,
+          blob: base64Data,
+          size: compressedBlob.size,
+          timestamp: Date.now(),
+          expiresAt: Date.now() + this.CACHE_DURATION,
+          lastAccessed: Date.now(),
+          storage: "localStorage",
         }
 
-        // Retornar URL do blob para uso imediato
-        return URL.createObjectURL(await this.decompressPdfBlob(compressedBlob, isCompressed))
-      } catch (quotaError) {
-        console.error(`❌ [PDF-CACHE] Erro de quota mesmo após limpeza:`, quotaError)
-        return this.getProxyUrl(url)
+        localStorage.setItem(key, JSON.stringify(cacheData))
+        console.log(`✅ [PDF-CACHE] PDF cacheado no localStorage: ${name} (${finalSizeInMB.toFixed(2)}MB)`)
       }
+
+      // Retornar URL do blob para uso imediato
+      return URL.createObjectURL(await this.decompressPdfBlob(compressedBlob, isCompressed))
     } catch (error) {
       console.error("❌ [PDF-CACHE] Erro ao cachear PDF:", error)
       return this.getProxyUrl(url)
@@ -348,17 +348,33 @@ class FullPdfCache {
       cacheData.lastAccessed = Date.now()
       localStorage.setItem(key, JSON.stringify(cacheData))
 
-      // Converter base64 de volta para blob
-      const response = await fetch(cacheData.blob)
-      const compressedBlob = await response.blob()
+      let blob: Blob
+
+      if (cacheData.storage === "indexedDB") {
+        // Recuperar do IndexedDB
+        const result = await this.getFromIndexedDB(key)
+        if (!result) {
+          localStorage.removeItem(key)
+          return null
+        }
+        blob = result.blob
+      } else {
+        // Recuperar do localStorage
+        if (!cacheData.blob) {
+          localStorage.removeItem(key)
+          return null
+        }
+        const response = await fetch(cacheData.blob)
+        blob = await response.blob()
+      }
 
       // Descomprimir se necessário
-      const originalBlob = await this.decompressPdfBlob(compressedBlob, this.COMPRESSION_ENABLED)
+      const originalBlob = await this.decompressPdfBlob(blob, this.COMPRESSION_ENABLED)
 
       // Criar URL do blob
       const blobUrl = URL.createObjectURL(originalBlob)
 
-      console.log(`✅ [PDF-CACHE] PDF servido do cache: ${cacheData.name}`)
+      console.log(`✅ [PDF-CACHE] PDF servido do ${cacheData.storage}: ${cacheData.name}`)
       return blobUrl
     } catch (error) {
       console.error("❌ [PDF-CACHE] Erro ao recuperar PDF do cache:", error)
@@ -401,6 +417,7 @@ class FullPdfCache {
       age: string
       expiresIn: string
       lastAccessed: string
+      storage: string
     }> = []
 
     let totalSize = 0
@@ -426,6 +443,7 @@ class FullPdfCache {
                 age: this.formatTime(age),
                 expiresIn: this.formatTime(expiresIn),
                 lastAccessed: this.formatTime(lastAccessed),
+                storage: cacheData.storage,
               })
             }
           }
@@ -471,6 +489,10 @@ class FullPdfCache {
     }
 
     keys.forEach((key) => localStorage.removeItem(key))
+
+    // Limpar IndexedDB também
+    this.clearIndexedDB()
+
     console.log(`🧹 [PDF-CACHE] Cache completo limpo (${keys.length} PDFs removidos)`)
   }
 
