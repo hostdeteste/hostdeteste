@@ -78,8 +78,8 @@ export function useWeeklyPdfs() {
       const lastCheck = localStorage.getItem("pdfs_last_check")
       const now = Date.now()
 
-      // Só verificar se passou mais de 2 horas (era 5 minutos)
-      if (lastCheck && now - Number.parseInt(lastCheck) < 2 * 60 * 60 * 1000) {
+      // Só verificar se passou mais de 5 minutos
+      if (lastCheck && now - Number.parseInt(lastCheck) < 5 * 60 * 1000) {
         return
       }
 
@@ -117,8 +117,8 @@ export function useWeeklyPdfs() {
       const data = JSON.parse(cached)
       const age = Date.now() - data.timestamp
 
-      // Cache válido por 24 horas (era 30 minutos)
-      if (age < 24 * 60 * 60 * 1000) {
+      // Cache válido por 30 minutos
+      if (age < 30 * 60 * 1000) {
         return { pdfs: data.pdfs, latest: data.latest }
       }
 
