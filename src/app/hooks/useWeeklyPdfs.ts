@@ -1,17 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-
-export interface WeeklyPdf {
-  id: string
-  name: string
-  file_path: string
-  url: string
-  upload_date: string
-  week: number
-  year: number
-  file_size?: number
-}
+import type { WeeklyPdf } from "@/app/lib/storage-optimized"
 
 export function useWeeklyPdfs() {
   const [pdfs, setPdfs] = useState<WeeklyPdf[]>([])
@@ -21,7 +11,7 @@ export function useWeeklyPdfs() {
   const [error, setError] = useState<string | null>(null)
   const loadingRef = useRef(false)
 
-  // Carregar PDFs com fallback específico para admin
+  // Carregar PDFs com cache otimizado
   const loadPdfs = async (silent = false) => {
     // Evitar múltiplas chamadas simultâneas
     if (loadingRef.current) return
@@ -31,148 +21,50 @@ export function useWeeklyPdfs() {
       if (!silent) setLoading(true)
       setError(null)
 
-      console.log("🔄 [ADMIN-PDFS] Carregando PDFs para admin...")
-
       // Tentar cache primeiro
       const cached = getCachedPdfs()
       if (cached) {
-        console.log("✅ [ADMIN-PDFS] Usando cache de PDFs")
         setPdfs(cached.pdfs)
         setLatestPdf(cached.latest)
         if (!silent) setLoading(false)
         loadingRef.current = false
 
         // Verificar atualizações em background
-        setTimeout(() => checkForUpdates(), 2000)
+        checkForUpdates()
         return
       }
 
-      // Tentar carregar da API com timeout mais longo para admin
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 segundos para admin
+      const response = await fetch("/api/weekly-pdfs", {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      })
 
-      try {
-        console.log("📡 [ADMIN-PDFS] Fazendo request para /api/weekly-pdfs...")
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`)
+      }
 
-        const response = await fetch("/api/weekly-pdfs", {
-          cache: "no-store",
-          headers: {
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-          },
-          signal: controller.signal,
-        })
+      const data = await response.json()
 
-        clearTimeout(timeoutId)
+      if (data.success) {
+        setPdfs(data.pdfs || [])
+        setLatestPdf(data.latest || null)
 
-        console.log("📊 [ADMIN-PDFS] Response status:", response.status)
-        console.log("📊 [ADMIN-PDFS] Response ok:", response.ok)
-
-        // Mesmo se não for OK, tentar ler a resposta
-        let data: any = {}
-        try {
-          data = await response.json()
-          console.log("📋 [ADMIN-PDFS] Dados recebidos:", data)
-        } catch (jsonError) {
-          console.error("❌ [ADMIN-PDFS] Erro ao parsear JSON:", jsonError)
-          throw new Error("Resposta inválida do servidor")
-        }
-
-        // Verificar se a resposta tem dados válidos (mesmo com erro)
-        if (data && typeof data === "object") {
-          // Se success é false mas temos dados de fallback
-          if (!data.success && data.fallback) {
-            console.log("⚠️ [ADMIN-PDFS] Usando dados de fallback do servidor")
-            setPdfs([])
-            setLatestPdf(null)
-            setError("Dados temporariamente indisponíveis")
-            return
-          }
-
-          // Se temos dados válidos
-          const pdfsArray = Array.isArray(data.pdfs) ? data.pdfs : []
-          const latestPdf = data.latest || (pdfsArray.length > 0 ? pdfsArray[0] : null)
-
-          console.log(`✅ [ADMIN-PDFS] Processando ${pdfsArray.length} PDFs`)
-
-          setPdfs(pdfsArray)
-          setLatestPdf(latestPdf)
-
-          // Salvar no cache apenas se temos dados válidos ou sucesso
-          if (pdfsArray.length > 0 || data.success) {
-            savePdfsToCache(pdfsArray, latestPdf)
-          }
-
-          // Se não há erro mas também não há dados, mostrar mensagem apropriada
-          if (pdfsArray.length === 0 && !data.error) {
-            setError(null) // Sem erro, apenas sem dados
-          }
-        } else {
-          throw new Error("Resposta inválida da API")
-        }
-      } catch (fetchError) {
-        clearTimeout(timeoutId)
-        console.error("❌ [ADMIN-PDFS] Erro no fetch:", fetchError)
-
-        // Tratamento específico de erros
-        if (fetchError instanceof Error) {
-          if (fetchError.name === "AbortError") {
-            console.log("⏰ [ADMIN-PDFS] Timeout - tentando cache de emergência...")
-            const fallback = getFallbackCache()
-            if (fallback) {
-              setPdfs(fallback.pdfs)
-              setLatestPdf(fallback.latest)
-              setError("Dados carregados do cache (conexão lenta)")
-              return
-            }
-            setError("Timeout na conexão - tente novamente")
-            return
-          }
-
-          if (fetchError.message.includes("fetch")) {
-            console.log("🌐 [ADMIN-PDFS] Erro de rede - tentando cache...")
-            const fallback = getFallbackCache()
-            if (fallback) {
-              setPdfs(fallback.pdfs)
-              setLatestPdf(fallback.latest)
-              setError("Dados do cache (sem conexão)")
-              return
-            }
-            setError("Erro de conexão - verifique a internet")
-            return
-          }
-        }
-
-        throw fetchError
+        // Salvar no cache
+        savePdfsToCache(data.pdfs || [], data.latest || null)
+      } else {
+        throw new Error(data.error || "Erro desconhecido")
       }
     } catch (error) {
-      console.error("💥 [ADMIN-PDFS] Erro geral:", error)
+      console.error("Erro ao carregar PDFs:", error)
+      setError(error instanceof Error ? error.message : "Erro ao carregar PDFs")
 
       // Tentar cache de emergência
       const fallback = getFallbackCache()
       if (fallback) {
-        console.log("🆘 [ADMIN-PDFS] Usando cache de emergência")
         setPdfs(fallback.pdfs)
         setLatestPdf(fallback.latest)
-        setError("Dados do cache (erro na conexão)")
-      } else {
-        // Fallback final: dados vazios mas válidos para admin
-        console.log("📝 [ADMIN-PDFS] Iniciando com dados vazios para admin")
-        setPdfs([])
-        setLatestPdf(null)
-
-        // Erro mais específico para admin
-        if (error instanceof Error) {
-          if (error.message.includes("Supabase")) {
-            setError("Erro na base de dados - verifique a configuração")
-          } else if (error.message.includes("fetch")) {
-            setError("Erro de conexão - verifique a internet")
-          } else {
-            setError(`Erro: ${error.message}`)
-          }
-        } else {
-          setError("Erro desconhecido ao carregar PDFs")
-        }
       }
     } finally {
       if (!silent) setLoading(false)
@@ -180,72 +72,58 @@ export function useWeeklyPdfs() {
     }
   }
 
-  // Verificar atualizações em background (mais conservador para admin)
+  // Verificar atualizações em background
   const checkForUpdates = async () => {
     try {
-      const lastCheck = localStorage.getItem("admin_pdfs_last_check")
+      const lastCheck = localStorage.getItem("pdfs_last_check")
       const now = Date.now()
 
-      // Só verificar se passou mais de 10 minutos para admin
-      if (lastCheck && now - Number.parseInt(lastCheck) < 10 * 60 * 1000) {
+      // Só verificar se passou mais de 5 minutos
+      if (lastCheck && now - Number.parseInt(lastCheck) < 5 * 60 * 1000) {
         return
       }
 
-      console.log("🔍 [ADMIN-PDFS] Verificando atualizações em background...")
+      const response = await fetch("/api/weekly-pdfs", {
+        cache: "no-store",
+      })
 
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 segundos para background
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          const currentLatest = latestPdf?.id
+          const newLatest = data.latest?.id
 
-      try {
-        const response = await fetch("/api/weekly-pdfs", {
-          cache: "no-store",
-          signal: controller.signal,
-        })
-
-        clearTimeout(timeoutId)
-
-        if (response.ok) {
-          const data = await response.json()
-          if (data && (data.success || Array.isArray(data.pdfs))) {
-            const currentLatest = latestPdf?.id
-            const newLatest = data.latest?.id
-
-            if (currentLatest !== newLatest) {
-              console.log("🔄 [ADMIN-PDFS] Atualizações encontradas, recarregando...")
-              setPdfs(data.pdfs || [])
-              setLatestPdf(data.latest || null)
-              savePdfsToCache(data.pdfs || [], data.latest || null)
-            }
+          if (currentLatest !== newLatest) {
+            setPdfs(data.pdfs || [])
+            setLatestPdf(data.latest || null)
+            savePdfsToCache(data.pdfs || [], data.latest || null)
           }
         }
-
-        localStorage.setItem("admin_pdfs_last_check", now.toString())
-      } catch (bgError) {
-        clearTimeout(timeoutId)
-        console.log("⚠️ [ADMIN-PDFS] Background check falhou (ignorado):", bgError)
       }
+
+      localStorage.setItem("pdfs_last_check", now.toString())
     } catch (error) {
-      console.log("⚠️ [ADMIN-PDFS] Background check error (ignorado):", error)
+      // Ignorar erros de background check
+      console.log("Background check falhou:", error)
     }
   }
 
-  // Cache functions com tratamento robusto
+  // Cache functions
   const getCachedPdfs = () => {
     try {
-      const cached = localStorage.getItem("admin_weekly_pdfs_cache")
+      const cached = localStorage.getItem("weekly_pdfs_cache")
       if (!cached) return null
 
       const data = JSON.parse(cached)
       const age = Date.now() - data.timestamp
 
-      // Cache válido por 1 hora para admin
-      if (age < 60 * 60 * 1000) {
-        return { pdfs: data.pdfs || [], latest: data.latest || null }
+      // Cache válido por 30 minutos
+      if (age < 30 * 60 * 1000) {
+        return { pdfs: data.pdfs, latest: data.latest }
       }
 
       return null
-    } catch (error) {
-      console.warn("⚠️ [ADMIN-PDFS] Erro ao ler cache:", error)
+    } catch {
       return null
     }
   }
@@ -253,128 +131,83 @@ export function useWeeklyPdfs() {
   const savePdfsToCache = (pdfs: WeeklyPdf[], latest: WeeklyPdf | null) => {
     try {
       const cacheData = {
-        pdfs: pdfs || [],
-        latest: latest || null,
+        pdfs,
+        latest,
         timestamp: Date.now(),
       }
-      localStorage.setItem("admin_weekly_pdfs_cache", JSON.stringify(cacheData))
-      console.log("💾 [ADMIN-PDFS] Cache salvo com sucesso")
-    } catch (error) {
-      console.warn("⚠️ [ADMIN-PDFS] Erro ao salvar cache:", error)
+      localStorage.setItem("weekly_pdfs_cache", JSON.stringify(cacheData))
+    } catch {
+      // Ignorar erros de cache
     }
   }
 
   const getFallbackCache = () => {
     try {
-      const cached = localStorage.getItem("admin_weekly_pdfs_cache")
+      const cached = localStorage.getItem("weekly_pdfs_cache")
       if (cached) {
         const data = JSON.parse(cached)
         return { pdfs: data.pdfs || [], latest: data.latest || null }
       }
-    } catch (error) {
-      console.warn("⚠️ [ADMIN-PDFS] Erro ao ler cache de emergência:", error)
+    } catch {
+      // Ignorar erros
     }
     return null
   }
 
-  // Adicionar novo PDF com tratamento robusto
+  // Adicionar novo PDF
   const addPdf = async (file: File, name: string) => {
     try {
       setSaving(true)
       setError(null)
 
-      console.log("📤 [ADMIN-PDFS] Adicionando PDF:", name)
-
       const formData = new FormData()
       formData.append("file", file)
       formData.append("name", name)
 
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 segundos para upload
+      const response = await fetch("/api/weekly-pdfs", {
+        method: "POST",
+        body: formData,
+      })
 
-      try {
-        const response = await fetch("/api/weekly-pdfs", {
-          method: "POST",
-          body: formData,
-          signal: controller.signal,
-        })
+      const data = await response.json()
 
-        clearTimeout(timeoutId)
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || `Erro HTTP: ${response.status}`)
-        }
-
-        const data = await response.json()
-
-        if (!data.success) {
-          throw new Error(data.error || "Erro ao fazer upload")
-        }
-
-        console.log("✅ [ADMIN-PDFS] PDF adicionado com sucesso")
-
-        // Limpar cache e recarregar
-        localStorage.removeItem("admin_weekly_pdfs_cache")
-        await loadPdfs()
-      } catch (uploadError) {
-        clearTimeout(timeoutId)
-        throw uploadError
+      if (!data.success) {
+        throw new Error(data.error || "Erro ao fazer upload")
       }
+
+      // Limpar cache e recarregar
+      localStorage.removeItem("weekly_pdfs_cache")
+      await loadPdfs()
     } catch (error) {
-      console.error("❌ [ADMIN-PDFS] Erro ao adicionar PDF:", error)
-      const errorMessage = error instanceof Error ? error.message : "Erro ao adicionar PDF"
-      setError(errorMessage)
-      throw new Error(errorMessage)
+      setError(error instanceof Error ? error.message : "Erro ao adicionar PDF")
+      throw error
     } finally {
       setSaving(false)
     }
   }
 
-  // Deletar PDF com tratamento robusto
+  // Deletar PDF
   const deletePdf = async (pdfId: string) => {
     try {
       setSaving(true)
       setError(null)
 
-      console.log("🗑️ [ADMIN-PDFS] Deletando PDF:", pdfId)
+      const response = await fetch(`/api/weekly-pdfs/${pdfId}`, {
+        method: "DELETE",
+      })
 
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 segundos para delete
+      const data = await response.json()
 
-      try {
-        const response = await fetch(`/api/weekly-pdfs/${pdfId}`, {
-          method: "DELETE",
-          signal: controller.signal,
-        })
-
-        clearTimeout(timeoutId)
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || `Erro HTTP: ${response.status}`)
-        }
-
-        const data = await response.json()
-
-        if (!data.success) {
-          throw new Error(data.error || "Erro ao deletar PDF")
-        }
-
-        console.log("✅ [ADMIN-PDFS] PDF deletado com sucesso")
-
-        // Limpar cache e recarregar
-        localStorage.removeItem("admin_weekly_pdfs_cache")
-        await loadPdfs()
-      } catch (deleteError) {
-        clearTimeout(timeoutId)
-        throw deleteError
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Erro ao deletar PDF")
       }
+
+      // Limpar cache e recarregar
+      localStorage.removeItem("weekly_pdfs_cache")
+      await loadPdfs()
     } catch (error) {
-      console.error("❌ [ADMIN-PDFS] Erro ao deletar PDF:", error)
-      const errorMessage = error instanceof Error ? error.message : "Erro ao deletar PDF"
-      setError(errorMessage)
-      throw new Error(errorMessage)
+      setError(error instanceof Error ? error.message : "Erro ao deletar PDF")
+      throw error
     } finally {
       setSaving(false)
     }
@@ -382,7 +215,6 @@ export function useWeeklyPdfs() {
 
   // Carregar PDFs apenas uma vez ao montar
   useEffect(() => {
-    console.log("🚀 [ADMIN-PDFS] Iniciando carregamento de PDFs para admin...")
     loadPdfs()
   }, [])
 
