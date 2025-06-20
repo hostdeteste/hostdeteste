@@ -9,9 +9,6 @@ import About from "./components/About"
 import Contact from "./components/Contact"
 import Footer from "./components/Footer"
 
-// Lazy load do debug panel apenas quando necessário
-const DebugPanel = lazy(() => import("./components/DebugPanel"))
-
 // Componentes de loading
 function HeroSkeleton() {
   return (
@@ -57,12 +54,6 @@ export default function Page() {
       <Contact />
       <Footer />
 
-      {/* Debug panel lazy loaded */}
-      {showDebug && (
-        <Suspense fallback={null}>
-          <DebugPanel />
-        </Suspense>
-      )}
     </main>
   )
 }
