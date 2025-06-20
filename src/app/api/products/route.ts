@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
 
 export const dynamic = "force-dynamic"
 
@@ -16,10 +15,6 @@ interface Product {
   created_at?: string
   updated_at?: string
 }
-
-// Configurações do Supabase
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 // Cache local
 let productsCache: Product[] | null = null
@@ -68,18 +63,35 @@ async function loadProductsFromSupabase(): Promise<Product[]> {
       return productsCache
     }
 
+    // Verificar variáveis de ambiente
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    console.log("🔍 [PRODUCTS] Verificando variáveis:")
+    console.log("- SUPABASE_URL:", !!supabaseUrl)
+    console.log("- SERVICE_KEY:", !!supabaseServiceKey)
+
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error("Variáveis Supabase não configuradas")
     }
 
+    // Importar Supabase dinamicamente
+    const { createClient } = await import("@supabase/supabase-js")
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    console.log("📡 [PRODUCTS] Fazendo query no Supabase...")
 
     const { data, error } = await supabase.from("products").select("*").order("created_at", { ascending: false })
 
     if (error) {
       console.error("❌ [PRODUCTS] Erro no Supabase:", error)
+      console.error("- Code:", error.code)
+      console.error("- Message:", error.message)
+      console.error("- Details:", error.details)
       throw new Error(`Erro no Supabase: ${error.message}`)
     }
+
+    console.log("📊 [PRODUCTS] Dados recebidos:", data?.length || 0, "registros")
 
     const products = (data || []).map(transformSupabaseProduct)
 
@@ -107,10 +119,15 @@ async function saveProductsToSupabase(products: Product[]): Promise<void> {
   try {
     console.log(`💾 [PRODUCTS] Salvando ${products.length} produtos no Supabase...`)
 
+    // Verificar variáveis de ambiente
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error("Variáveis Supabase não configuradas")
     }
 
+    const { createClient } = await import("@supabase/supabase-js")
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Limpar tabela e inserir novos dados
@@ -151,8 +168,8 @@ export async function GET() {
     // Verificar variáveis de ambiente primeiro
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.error("❌ [PRODUCTS] Variáveis Supabase não configuradas")
-      console.error("NEXT_PUBLIC_SUPABASE_URL:", !!process.env.NEXT_PUBLIC_SUPABASE_URL)
-      console.error("SUPABASE_SERVICE_ROLE_KEY:", !!process.env.SUPABASE_SERVICE_ROLE_KEY)
+      console.error("- NEXT_PUBLIC_SUPABASE_URL:", !!process.env.NEXT_PUBLIC_SUPABASE_URL)
+      console.error("- SUPABASE_SERVICE_ROLE_KEY:", !!process.env.SUPABASE_SERVICE_ROLE_KEY)
 
       return NextResponse.json(
         {
@@ -164,7 +181,7 @@ export async function GET() {
             serviceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
           },
         },
-        { status: 500 },
+        { status: 200 }, // Mudança: retornar 200 em vez de 500 para não quebrar o frontend
       )
     }
 
@@ -185,14 +202,16 @@ export async function GET() {
     } catch (storageError) {
       console.error("💥 [PRODUCTS] Erro no storage:", storageError)
 
+      // Retornar resposta de fallback com produtos vazios
       return NextResponse.json(
         {
           products: [],
           success: false,
           error: "Erro ao carregar produtos",
           details: storageError instanceof Error ? storageError.message : String(storageError),
+          fallback: true,
         },
-        { status: 500 },
+        { status: 200 }, // Mudança: retornar 200 em vez de 500 para não quebrar o frontend
       )
     }
   } catch (error) {
@@ -205,7 +224,7 @@ export async function GET() {
         error: "Erro interno do servidor",
         details: error instanceof Error ? error.message : String(error),
       },
-      { status: 500 },
+      { status: 200 }, // Mudança: retornar 200 em vez de 500 para não quebrar o frontend
     )
   }
 }

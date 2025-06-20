@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 
 export const dynamic = "force-dynamic"
 
@@ -15,23 +13,6 @@ interface WeeklyPdf {
   year: number
   file_size?: number
 }
-
-// Configurações do Supabase
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-// Configurações do R2
-const r2Client = new S3Client({
-  region: "auto",
-  endpoint: `https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
-  },
-})
-
-const BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME || "coutyfil-assets"
-const R2_PUBLIC_URL = "https://pub-bd3bd83c1f864ad880a287c264da1ae3.r2.dev"
 
 // Cache local
 let pdfsCache: WeeklyPdf[] | null = null
@@ -69,18 +50,35 @@ async function loadWeeklyPdfsFromSupabase(): Promise<WeeklyPdf[]> {
       return pdfsCache
     }
 
+    // Verificar variáveis de ambiente
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    console.log("🔍 [WEEKLY-PDFS] Verificando variáveis:")
+    console.log("- SUPABASE_URL:", !!supabaseUrl)
+    console.log("- SERVICE_KEY:", !!supabaseServiceKey)
+
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error("Variáveis Supabase não configuradas")
     }
 
+    // Importar Supabase dinamicamente para evitar erros de build
+    const { createClient } = await import("@supabase/supabase-js")
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    console.log("📡 [WEEKLY-PDFS] Fazendo query no Supabase...")
 
     const { data, error } = await supabase.from("weekly_pdfs").select("*").order("upload_date", { ascending: false })
 
     if (error) {
       console.error("❌ [WEEKLY-PDFS] Erro no Supabase:", error)
+      console.error("- Code:", error.code)
+      console.error("- Message:", error.message)
+      console.error("- Details:", error.details)
       throw new Error(`Erro no Supabase: ${error.message}`)
     }
+
+    console.log("📊 [WEEKLY-PDFS] Dados recebidos:", data?.length || 0, "registros")
 
     const pdfs = (data || []).map(transformSupabasePdf)
 
@@ -108,8 +106,26 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
   try {
     console.log(`📤 [WEEKLY-PDFS] Adicionando PDF: ${name}`)
 
+    // Verificar variáveis de ambiente
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const r2AccountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID
+    const r2AccessKey = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID
+    const r2SecretKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY
+
+    console.log("🔍 [WEEKLY-PDFS] Verificando variáveis de ambiente:")
+    console.log("- SUPABASE_URL:", !!supabaseUrl)
+    console.log("- SERVICE_KEY:", !!supabaseServiceKey)
+    console.log("- R2_ACCOUNT_ID:", !!r2AccountId)
+    console.log("- R2_ACCESS_KEY:", !!r2AccessKey)
+    console.log("- R2_SECRET_KEY:", !!r2SecretKey)
+
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error("Variáveis Supabase não configuradas")
+    }
+
+    if (!r2AccountId || !r2AccessKey || !r2SecretKey) {
+      throw new Error("Variáveis Cloudflare R2 não configuradas")
     }
 
     // Gerar informações do arquivo
@@ -118,11 +134,29 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
     const year = now.getFullYear()
     const fileName = `weekly-pdfs/${year}-w${week}-${Date.now()}.pdf`
 
+    console.log(`📁 [WEEKLY-PDFS] Nome do arquivo: ${fileName}`)
+
     // Upload para R2
-    console.log(`🔄 [WEEKLY-PDFS] Fazendo upload para R2: ${fileName}`)
+    console.log(`🔄 [WEEKLY-PDFS] Fazendo upload para R2...`)
+
+    const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3")
+
+    const r2Client = new S3Client({
+      region: "auto",
+      endpoint: `https://${r2AccountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: r2AccessKey,
+        secretAccessKey: r2SecretKey,
+      },
+    })
+
+    const BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME || "coutyfil-assets"
+    const R2_PUBLIC_URL = "https://pub-bd3bd83c1f864ad880a287c264da1ae3.r2.dev"
 
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
+
+    console.log(`📦 [WEEKLY-PDFS] Upload para bucket: ${BUCKET_NAME}`)
 
     await r2Client.send(
       new PutObjectCommand({
@@ -138,6 +172,7 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
     console.log(`✅ [WEEKLY-PDFS] Upload concluído: ${fileUrl}`)
 
     // Salvar no Supabase
+    const { createClient } = await import("@supabase/supabase-js")
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const pdfData = {
@@ -149,6 +184,8 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
       year,
       file_size: file.size,
     }
+
+    console.log("💾 [WEEKLY-PDFS] Salvando no Supabase:", pdfData)
 
     const { data, error } = await supabase.from("weekly_pdfs").insert([pdfData]).select().single()
 
@@ -179,6 +216,8 @@ export async function GET() {
     // Verificar variáveis de ambiente primeiro
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.error("❌ [WEEKLY-PDFS] Variáveis Supabase não configuradas")
+      console.error("- NEXT_PUBLIC_SUPABASE_URL:", !!process.env.NEXT_PUBLIC_SUPABASE_URL)
+      console.error("- SUPABASE_SERVICE_ROLE_KEY:", !!process.env.SUPABASE_SERVICE_ROLE_KEY)
 
       return NextResponse.json(
         {
@@ -186,6 +225,10 @@ export async function GET() {
           latest: null,
           success: false,
           error: "Configuração Supabase incompleta - verifique as variáveis de ambiente",
+          debug: {
+            supabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+            serviceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          },
         },
         { status: 500 },
       )
@@ -202,10 +245,12 @@ export async function GET() {
         latest,
         success: true,
         cached: true,
+        timestamp: new Date().toISOString(),
       })
     } catch (storageError) {
       console.error("💥 [WEEKLY-PDFS] Erro no storage:", storageError)
 
+      // Retornar resposta de fallback com PDFs vazios
       return NextResponse.json(
         {
           pdfs: [],
@@ -213,8 +258,9 @@ export async function GET() {
           success: false,
           error: "Erro ao carregar PDFs",
           details: storageError instanceof Error ? storageError.message : String(storageError),
+          fallback: true,
         },
-        { status: 500 },
+        { status: 200 }, // Mudança: retornar 200 em vez de 500 para não quebrar o frontend
       )
     }
   } catch (error) {
@@ -228,7 +274,7 @@ export async function GET() {
         error: "Erro interno do servidor",
         details: error instanceof Error ? error.message : String(error),
       },
-      { status: 500 },
+      { status: 200 }, // Mudança: retornar 200 em vez de 500 para não quebrar o frontend
     )
   }
 }
