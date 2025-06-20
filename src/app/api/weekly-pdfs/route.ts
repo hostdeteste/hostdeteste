@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
 
-// Tipos
+// Tipos - removendo file_size completamente
 interface WeeklyPdf {
   id: string
   name: string
@@ -11,7 +11,6 @@ interface WeeklyPdf {
   upload_date: string
   week: number
   year: number
-  file_size?: number
 }
 
 // Cache local
@@ -19,7 +18,7 @@ let pdfsCache: WeeklyPdf[] | null = null
 let pdfsCacheTime = 0
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
 
-// Funções auxiliares
+// Funções auxiliares - SEM file_size
 function transformSupabasePdf(data: any): WeeklyPdf {
   return {
     id: data.id,
@@ -30,8 +29,7 @@ function transformSupabasePdf(data: any): WeeklyPdf {
     upload_date: data.upload_date || data.uploaded_at || data.created_at || new Date().toISOString(),
     week: data.week || 1,
     year: data.year || new Date().getFullYear(),
-    // file_size é opcional - só incluir se existir
-    ...(data.file_size !== undefined && { file_size: data.file_size }),
+    // REMOVIDO: file_size completamente
   }
 }
 
@@ -41,7 +39,7 @@ function getWeekNumber(date: Date): number {
   return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7)
 }
 
-// Função para carregar PDFs com detecção automática de colunas
+// Função para carregar PDFs - SEM file_size
 async function loadWeeklyPdfsFromSupabase(): Promise<WeeklyPdf[]> {
   try {
     console.log("🔄 [WEEKLY-PDFS] Carregando PDFs do Supabase...")
@@ -70,104 +68,18 @@ async function loadWeeklyPdfsFromSupabase(): Promise<WeeklyPdf[]> {
 
     console.log("📡 [WEEKLY-PDFS] Fazendo query no Supabase...")
 
-    // Primeiro, vamos descobrir quais colunas existem na tabela
-    console.log("🔍 [WEEKLY-PDFS] Verificando estrutura da tabela...")
+    // Selecionar apenas as colunas que sabemos que existem
+    const { data, error } = await supabase
+      .from("weekly_pdfs")
+      .select("id, name, file_path, url, upload_date, week, year, created_at")
+      .order("created_at", { ascending: false })
 
-    try {
-      // Tentar buscar um registro para ver a estrutura
-      const { data: sampleData, error: sampleError } = await supabase.from("weekly_pdfs").select("*").limit(1)
-
-      if (sampleError) {
-        console.error("❌ [WEEKLY-PDFS] Erro ao verificar estrutura:", sampleError)
-      } else if (sampleData && sampleData.length > 0) {
-        console.log("📊 [WEEKLY-PDFS] Estrutura da tabela (primeiro registro):")
-        console.log("📊 [WEEKLY-PDFS] Colunas disponíveis:", Object.keys(sampleData[0]))
-      }
-    } catch (structureError) {
-      console.warn("⚠️ [WEEKLY-PDFS] Não foi possível verificar estrutura:", structureError)
-    }
-
-    // Agora vamos tentar diferentes ordenações baseadas nas colunas que podem existir
-    let data: any[] = []
-    let queryError: Error | null = null
-
-    // Tentativa 1: upload_date
-    try {
-      console.log("🔄 [WEEKLY-PDFS] Tentativa 1: ordenar por upload_date...")
-      const result = await supabase.from("weekly_pdfs").select("*").order("upload_date", { ascending: false })
-
-      if (result.error) {
-        throw new Error(result.error.message)
-      }
-      data = result.data || []
-      console.log("✅ [WEEKLY-PDFS] Sucesso com upload_date!")
-    } catch (error1) {
-      const errorMessage = error1 instanceof Error ? error1.message : String(error1)
-      console.log("❌ [WEEKLY-PDFS] Falhou com upload_date:", errorMessage)
-      queryError = new Error(errorMessage)
-
-      // Tentativa 2: created_at
-      try {
-        console.log("🔄 [WEEKLY-PDFS] Tentativa 2: ordenar por created_at...")
-        const result = await supabase.from("weekly_pdfs").select("*").order("created_at", { ascending: false })
-
-        if (result.error) {
-          throw new Error(result.error.message)
-        }
-        data = result.data || []
-        console.log("✅ [WEEKLY-PDFS] Sucesso com created_at!")
-        queryError = null
-      } catch (error2) {
-        const errorMessage2 = error2 instanceof Error ? error2.message : String(error2)
-        console.log("❌ [WEEKLY-PDFS] Falhou com created_at:", errorMessage2)
-
-        // Tentativa 3: uploaded_at
-        try {
-          console.log("🔄 [WEEKLY-PDFS] Tentativa 3: ordenar por uploaded_at...")
-          const result = await supabase.from("weekly_pdfs").select("*").order("uploaded_at", { ascending: false })
-
-          if (result.error) {
-            throw new Error(result.error.message)
-          }
-          data = result.data || []
-          console.log("✅ [WEEKLY-PDFS] Sucesso com uploaded_at!")
-          queryError = null
-        } catch (error3) {
-          const errorMessage3 = error3 instanceof Error ? error3.message : String(error3)
-          console.log("❌ [WEEKLY-PDFS] Falhou com uploaded_at:", errorMessage3)
-
-          // Tentativa 4: sem ordenação específica
-          try {
-            console.log("🔄 [WEEKLY-PDFS] Tentativa 4: sem ordenação por data...")
-            const result = await supabase.from("weekly_pdfs").select("*")
-
-            if (result.error) {
-              throw new Error(result.error.message)
-            }
-            data = result.data || []
-            console.log("✅ [WEEKLY-PDFS] Sucesso sem ordenação específica!")
-            queryError = null
-          } catch (error4) {
-            const errorMessage4 = error4 instanceof Error ? error4.message : String(error4)
-            console.log("❌ [WEEKLY-PDFS] Todas as tentativas falharam")
-            queryError = new Error(errorMessage4)
-          }
-        }
-      }
-    }
-
-    if (queryError) {
-      console.error("❌ [WEEKLY-PDFS] Erro final no Supabase:", queryError)
-      throw new Error(`Erro no Supabase: ${queryError.message}`)
+    if (error) {
+      console.error("❌ [WEEKLY-PDFS] Erro no Supabase:", error)
+      throw new Error(`Erro no Supabase: ${error.message}`)
     }
 
     console.log("📊 [WEEKLY-PDFS] Dados recebidos:", data?.length || 0, "registros")
-
-    // Log detalhado dos dados brutos
-    if (data && data.length > 0) {
-      console.log("📄 [WEEKLY-PDFS] Primeiro registro bruto:")
-      console.log(data[0])
-    }
 
     const pdfs = (data || []).map(transformSupabasePdf)
 
@@ -196,7 +108,7 @@ async function loadWeeklyPdfsFromSupabase(): Promise<WeeklyPdf[]> {
   }
 }
 
-// Função para adicionar PDF com logs ultra-detalhados
+// Função para adicionar PDF - SEM file_size
 async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyPdf> {
   try {
     console.log(`📤 [WEEKLY-PDFS-STORAGE] === INICIANDO STORAGE ===`)
@@ -215,53 +127,28 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
     // Upload para R2
     console.log(`🔄 [WEEKLY-PDFS-STORAGE] === UPLOAD PARA R2 ===`)
 
-    let r2Client: any
-    let arrayBuffer: ArrayBuffer
-    let buffer: Buffer
-
     try {
       // Preparar arquivo
       console.log(`📄 [WEEKLY-PDFS-STORAGE] Convertendo arquivo para buffer...`)
-      arrayBuffer = await file.arrayBuffer()
-      buffer = Buffer.from(arrayBuffer)
+      const arrayBuffer = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
       console.log(`✅ [WEEKLY-PDFS-STORAGE] Buffer criado: ${buffer.length} bytes`)
-    } catch (bufferError) {
-      console.error("❌ [WEEKLY-PDFS-STORAGE] Erro ao criar buffer:", bufferError)
-      throw new Error(
-        `Erro ao processar arquivo: ${bufferError instanceof Error ? bufferError.message : "Erro desconhecido"}`,
-      )
-    }
 
-    try {
       // Configurar R2 Client
       console.log(`🔧 [WEEKLY-PDFS-STORAGE] Configurando R2 Client...`)
       const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3")
 
-      const r2AccountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID!
-      const r2AccessKey = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!
-      const r2SecretKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!
-
-      r2Client = new S3Client({
+      const r2Client = new S3Client({
         region: "auto",
-        endpoint: `https://${r2AccountId}.r2.cloudflarestorage.com`,
+        endpoint: `https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
         credentials: {
-          accessKeyId: r2AccessKey,
-          secretAccessKey: r2SecretKey,
+          accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
         },
       })
 
-      console.log(`✅ [WEEKLY-PDFS-STORAGE] R2 Client configurado`)
-    } catch (r2ConfigError) {
-      console.error("❌ [WEEKLY-PDFS-STORAGE] Erro ao configurar R2:", r2ConfigError)
-      throw new Error(
-        `Erro na configuração R2: ${r2ConfigError instanceof Error ? r2ConfigError.message : "Erro desconhecido"}`,
-      )
-    }
-
-    try {
       // Fazer upload
       console.log(`📤 [WEEKLY-PDFS-STORAGE] Enviando para R2...`)
-      const { PutObjectCommand } = await import("@aws-sdk/client-s3")
       const BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME || "coutyfil-assets"
 
       await r2Client.send(
@@ -277,75 +164,22 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
       const R2_PUBLIC_URL = "https://pub-bd3bd83c1f864ad880a287c264da1ae3.r2.dev"
       const fileUrl = `${R2_PUBLIC_URL}/${fileName}`
       console.log(`✅ [WEEKLY-PDFS-STORAGE] Upload R2 concluído: ${fileUrl}`)
-    } catch (r2UploadError) {
-      console.error("❌ [WEEKLY-PDFS-STORAGE] Erro no upload R2:", r2UploadError)
-      throw new Error(
-        `Erro no upload R2: ${r2UploadError instanceof Error ? r2UploadError.message : "Erro desconhecido"}`,
-      )
-    }
 
-    // Salvar no Supabase
-    console.log(`💾 [WEEKLY-PDFS-STORAGE] === SALVANDO NO SUPABASE ===`)
+      // Salvar no Supabase - SEM file_size
+      console.log(`💾 [WEEKLY-PDFS-STORAGE] === SALVANDO NO SUPABASE ===`)
 
-    try {
       const { createClient } = await import("@supabase/supabase-js")
       const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-      console.log(`🔧 [WEEKLY-PDFS-STORAGE] Supabase client criado`)
-
-      // Descobrir estrutura da tabela
-      console.log("🔍 [WEEKLY-PDFS-STORAGE] Descobrindo estrutura da tabela...")
-
-      let dateColumn = "upload_date" // padrão
-      let hasFileSizeColumn = false
-
-      try {
-        const { data: sampleData } = await supabase.from("weekly_pdfs").select("*").limit(1)
-
-        if (sampleData && sampleData.length > 0) {
-          const columns = Object.keys(sampleData[0])
-          console.log("📊 [WEEKLY-PDFS-STORAGE] Colunas disponíveis:", columns)
-
-          // Detectar coluna de data
-          if (columns.includes("created_at")) {
-            dateColumn = "created_at"
-          } else if (columns.includes("uploaded_at")) {
-            dateColumn = "uploaded_at"
-          } else if (columns.includes("upload_date")) {
-            dateColumn = "upload_date"
-          }
-
-          // Verificar se tem coluna file_size
-          hasFileSizeColumn = columns.includes("file_size")
-        }
-      } catch (error) {
-        console.warn("⚠️ [WEEKLY-PDFS-STORAGE] Não foi possível detectar colunas, usando padrão")
-      }
-
-      console.log("📅 [WEEKLY-PDFS-STORAGE] Usando coluna de data:", dateColumn)
-      console.log("📊 [WEEKLY-PDFS-STORAGE] Coluna file_size disponível:", hasFileSizeColumn)
-
-      // Preparar dados
-      const R2_PUBLIC_URL = "https://pub-bd3bd83c1f864ad880a287c264da1ae3.r2.dev"
-      const fileUrl = `${R2_PUBLIC_URL}/${fileName}`
-
-      const pdfData: any = {
+      // Preparar dados - APENAS colunas básicas
+      const pdfData = {
         name,
         file_path: fileName,
         url: fileUrl,
         week,
         year,
-      }
-
-      // Adicionar data
-      pdfData[dateColumn] = now.toISOString()
-
-      // Só adicionar file_size se a coluna existir
-      if (hasFileSizeColumn) {
-        pdfData.file_size = file.size
-        console.log("📊 [WEEKLY-PDFS-STORAGE] Incluindo file_size:", file.size)
-      } else {
-        console.log("⚠️ [WEEKLY-PDFS-STORAGE] Coluna file_size não existe, pulando...")
+        upload_date: now.toISOString(),
+        // REMOVIDO: file_size completamente
       }
 
       console.log("💾 [WEEKLY-PDFS-STORAGE] Dados para inserção:", pdfData)
@@ -368,11 +202,9 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
       console.log(`🎉 [WEEKLY-PDFS-STORAGE] PDF processado com sucesso: ${newPdf.name}`)
 
       return newPdf
-    } catch (supabaseError) {
-      console.error("❌ [WEEKLY-PDFS-STORAGE] Erro no Supabase:", supabaseError)
-      throw new Error(
-        `Erro no Supabase: ${supabaseError instanceof Error ? supabaseError.message : "Erro desconhecido"}`,
-      )
+    } catch (storageError) {
+      console.error("❌ [WEEKLY-PDFS-STORAGE] Erro no storage:", storageError)
+      throw new Error(`Erro no storage: ${storageError instanceof Error ? storageError.message : "Erro desconhecido"}`)
     }
   } catch (error) {
     console.error("💥 [WEEKLY-PDFS-STORAGE] Erro geral no storage:", error)
@@ -380,7 +212,7 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
   }
 }
 
-// GET - Carregar PDFs semanais com detecção automática
+// GET - Carregar PDFs semanais
 export async function GET() {
   try {
     console.log("🔄 [WEEKLY-PDFS] === CARREGANDO PDFs ===")
@@ -449,7 +281,7 @@ export async function GET() {
   }
 }
 
-// POST - Adicionar novo PDF com logs detalhados
+// POST - Adicionar novo PDF
 export async function POST(request: Request) {
   try {
     console.log("📤 [WEEKLY-PDFS-API] === INICIANDO UPLOAD ===")
@@ -538,13 +370,6 @@ export async function POST(request: Request) {
     } catch (storageError) {
       console.error("💥 [WEEKLY-PDFS-API] Erro no storage:", storageError)
 
-      // Log mais detalhado do erro
-      if (storageError instanceof Error) {
-        console.error("💥 [WEEKLY-PDFS-API] Error name:", storageError.name)
-        console.error("💥 [WEEKLY-PDFS-API] Error message:", storageError.message)
-        console.error("💥 [WEEKLY-PDFS-API] Error stack:", storageError.stack)
-      }
-
       return NextResponse.json(
         {
           error: "Erro ao fazer upload do PDF",
@@ -560,13 +385,6 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error("💥 [WEEKLY-PDFS-API] Erro geral:", error)
-
-    // Log mais detalhado do erro geral
-    if (error instanceof Error) {
-      console.error("💥 [WEEKLY-PDFS-API] General error name:", error.name)
-      console.error("💥 [WEEKLY-PDFS-API] General error message:", error.message)
-      console.error("💥 [WEEKLY-PDFS-API] General error stack:", error.stack)
-    }
 
     return NextResponse.json(
       {

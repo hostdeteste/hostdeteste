@@ -10,7 +10,7 @@ export interface WeeklyPdf {
   upload_date: string
   week: number
   year: number
-  file_size?: number
+  // REMOVIDO: file_size?: number
 }
 
 export function useWeeklyPdfs() {
@@ -84,11 +84,10 @@ export function useWeeklyPdfs() {
         console.log("📊 [ADMIN-PDFS] - Status:", response.status)
         console.log("📊 [ADMIN-PDFS] - Status Text:", response.statusText)
         console.log("📊 [ADMIN-PDFS] - OK:", response.ok)
-        console.log("📊 [ADMIN-PDFS] - Headers:", Object.fromEntries(response.headers.entries()))
 
         // Tentar ler a resposta mesmo se não for OK
         let data: any = {}
-        let responseText = "" // Declare responseText here
+        let responseText = ""
         try {
           responseText = await response.text()
           console.log("📄 [ADMIN-PDFS] Response text (primeiros 500 chars):", responseText.substring(0, 500))
@@ -100,7 +99,6 @@ export function useWeeklyPdfs() {
           console.log("📋 [ADMIN-PDFS] - PDFs array:", Array.isArray(data.pdfs))
           console.log("📋 [ADMIN-PDFS] - PDFs count:", data.pdfs?.length || 0)
           console.log("📋 [ADMIN-PDFS] - Latest PDF:", data.latest?.name || "nenhum")
-          console.log("📋 [ADMIN-PDFS] - Fallback:", data.fallback)
 
           // Log detalhado dos PDFs
           if (Array.isArray(data.pdfs) && data.pdfs.length > 0) {
