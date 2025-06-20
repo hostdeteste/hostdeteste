@@ -425,8 +425,17 @@ export function useWeeklyPdfs() {
         console.log("📤 [ADMIN-PDFS] Upload response:", response.status)
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || `Erro HTTP: ${response.status}`)
+          const errorText = await response.text()
+          console.error("❌ [ADMIN-PDFS] Error response body:", errorText)
+
+          try {
+            const errorData = JSON.parse(errorText)
+            console.error("❌ [ADMIN-PDFS] Error data parsed:", errorData)
+            throw new Error(errorData.error || `Erro HTTP: ${response.status}`)
+          } catch (parseError) {
+            console.error("❌ [ADMIN-PDFS] Could not parse error response:", parseError)
+            throw new Error(`Erro HTTP: ${response.status} - ${errorText}`)
+          }
         }
 
         const data = await response.json()
