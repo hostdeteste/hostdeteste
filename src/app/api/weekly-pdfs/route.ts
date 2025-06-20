@@ -30,7 +30,8 @@ function transformSupabasePdf(data: any): WeeklyPdf {
     upload_date: data.upload_date || data.uploaded_at || data.created_at || new Date().toISOString(),
     week: data.week || 1,
     year: data.year || new Date().getFullYear(),
-    file_size: data.file_size || 0,
+    // file_size é opcional - só incluir se existir
+    ...(data.file_size !== undefined && { file_size: data.file_size }),
   }
 }
 
@@ -296,6 +297,8 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
       console.log("🔍 [WEEKLY-PDFS-STORAGE] Descobrindo estrutura da tabela...")
 
       let dateColumn = "upload_date" // padrão
+      let hasFileSizeColumn = false
+
       try {
         const { data: sampleData } = await supabase.from("weekly_pdfs").select("*").limit(1)
 
@@ -303,6 +306,7 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
           const columns = Object.keys(sampleData[0])
           console.log("📊 [WEEKLY-PDFS-STORAGE] Colunas disponíveis:", columns)
 
+          // Detectar coluna de data
           if (columns.includes("created_at")) {
             dateColumn = "created_at"
           } else if (columns.includes("uploaded_at")) {
@@ -310,12 +314,16 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
           } else if (columns.includes("upload_date")) {
             dateColumn = "upload_date"
           }
+
+          // Verificar se tem coluna file_size
+          hasFileSizeColumn = columns.includes("file_size")
         }
       } catch (error) {
         console.warn("⚠️ [WEEKLY-PDFS-STORAGE] Não foi possível detectar colunas, usando padrão")
       }
 
       console.log("📅 [WEEKLY-PDFS-STORAGE] Usando coluna de data:", dateColumn)
+      console.log("📊 [WEEKLY-PDFS-STORAGE] Coluna file_size disponível:", hasFileSizeColumn)
 
       // Preparar dados
       const R2_PUBLIC_URL = "https://pub-bd3bd83c1f864ad880a287c264da1ae3.r2.dev"
@@ -327,10 +335,18 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
         url: fileUrl,
         week,
         year,
-        file_size: file.size,
       }
 
+      // Adicionar data
       pdfData[dateColumn] = now.toISOString()
+
+      // Só adicionar file_size se a coluna existir
+      if (hasFileSizeColumn) {
+        pdfData.file_size = file.size
+        console.log("📊 [WEEKLY-PDFS-STORAGE] Incluindo file_size:", file.size)
+      } else {
+        console.log("⚠️ [WEEKLY-PDFS-STORAGE] Coluna file_size não existe, pulando...")
+      }
 
       console.log("💾 [WEEKLY-PDFS-STORAGE] Dados para inserção:", pdfData)
 
