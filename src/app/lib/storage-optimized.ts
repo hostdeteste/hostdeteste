@@ -52,7 +52,7 @@ const r2Client = new S3Client({
 })
 
 const BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME || "coutyfil-assets"
-const R2_PUBLIC_URL = "https://pub-bd3bd83c1f864ad880a287c264da1ae3.r2.dev"
+const R2_PUBLIC_URL = "https://pub-92501dd4f797413a9775e615967d81ba.r2.dev"
 
 // Cache local
 let productsCache: Product[] | null = null
