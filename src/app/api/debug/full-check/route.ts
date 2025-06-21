@@ -82,13 +82,25 @@ export async function GET() {
     r2Test.error = error instanceof Error ? error.message : String(error)
   }
 
-  // Teste de PDFs
+  // Teste de PDFs - CORRIGIDO
   const pdfTest = { count: 0, error: null, latest: null }
   try {
-    const response = await fetch(`${process.env.VERCEL_URL || "http://localhost:3000"}/api/weekly-pdfs`, {
+    // Construir URL corretamente
+    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
+
+    console.log("🔍 [DEBUG] Testando URL:", `${baseUrl}/api/weekly-pdfs`)
+
+    const response = await fetch(`${baseUrl}/api/weekly-pdfs`, {
       cache: "no-store",
+      headers: {
+        "User-Agent": "Debug-Check/1.0",
+      },
     })
+
+    console.log("📊 [DEBUG] Response status:", response.status)
+
     const data = await response.json()
+    console.log("📋 [DEBUG] Response data:", data)
 
     if (data.success) {
       pdfTest.count = data.pdfs?.length || 0
@@ -97,6 +109,7 @@ export async function GET() {
       pdfTest.error = data.error
     }
   } catch (error) {
+    console.error("❌ [DEBUG] PDF test error:", error)
     pdfTest.error = error instanceof Error ? error.message : String(error)
   }
 
