@@ -161,7 +161,7 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
         }),
       )
 
-      const R2_PUBLIC_URL = "https://pub-bd3bd83c1f864ad880a287c264da1ae3.r2.dev"
+      const R2_PUBLIC_URL = "https://pub-92501dd4f797413a9775e615967d81ba.r2.dev"
       const fileUrl = `${R2_PUBLIC_URL}/${fileName}`
       console.log(`✅ [WEEKLY-PDFS-STORAGE] Upload R2 concluído: ${fileUrl}`)
 
