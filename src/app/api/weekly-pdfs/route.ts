@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-export const dynamic = "force-dynamic"
+export const dynamic = "force_dynamic"
 
 // Tipos - removendo file_size completamente
 interface WeeklyPdf {
@@ -25,8 +25,8 @@ function transformSupabasePdf(data: any): WeeklyPdf {
     name: data.name || "",
     file_path: data.file_path || "",
     url: data.url || "",
-    // Tentar diferentes nomes de coluna para a data
-    upload_date: data.upload_date || data.uploaded_at || data.created_at || new Date().toISOString(),
+    // Usar apenas created_at que já existe
+    upload_date: data.created_at || new Date().toISOString(),
     week: data.week || 1,
     year: data.year || new Date().getFullYear(),
     // REMOVIDO: file_size completamente
@@ -71,7 +71,7 @@ async function loadWeeklyPdfsFromSupabase(): Promise<WeeklyPdf[]> {
     // Selecionar apenas as colunas que sabemos que existem
     const { data, error } = await supabase
       .from("weekly_pdfs")
-      .select("id, name, file_path, url, upload_date, week, year, created_at")
+      .select("id, name, file_path, url, week, year, created_at")
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -171,15 +171,14 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
       const { createClient } = await import("@supabase/supabase-js")
       const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-      // Preparar dados - APENAS colunas básicas
+      // Preparar dados - usar apenas created_at (que já existe no Supabase por padrão)
       const pdfData = {
         name,
         file_path: fileName,
         url: fileUrl,
         week,
         year,
-        upload_date: now.toISOString(),
-        // REMOVIDO: file_size completamente
+        // Remover upload_date completamente - usar apenas created_at que já existe
       }
 
       console.log("💾 [WEEKLY-PDFS-STORAGE] Dados para inserção:", pdfData)
