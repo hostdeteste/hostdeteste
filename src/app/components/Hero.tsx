@@ -136,17 +136,22 @@ function PdfPreviewSkeleton({ isMobile }: { isMobile: boolean }) {
 }
 
 function PdfPreview({ latestPdf, isMobile }: { latestPdf: any; isMobile: boolean }) {
-  const [previewMethod, setPreviewMethod] = useState<"visual" | "iframe">("visual")
-  const [showIframe, setShowIframe] = useState(false)
+  const [imageLoading, setImageLoading] = useState(true)
+  const [imageError, setImageError] = useState(false)
 
-  // Tentar iframe após 2 segundos (para dar tempo de carregar)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowIframe(true)
-    }, 2000)
+  // URL para converter PDF em imagem
+  const pdfImageUrl = `/api/pdf-to-image?url=${encodeURIComponent(latestPdf.url)}`
 
-    return () => clearTimeout(timer)
-  }, [])
+  const handleImageLoad = () => {
+    console.log("✅ [HERO] PDF primeira página carregada como imagem")
+    setImageLoading(false)
+  }
+
+  const handleImageError = () => {
+    console.log("❌ [HERO] Erro ao carregar primeira página do PDF")
+    setImageError(true)
+    setImageLoading(false)
+  }
 
   return (
     <div className="relative w-full max-w-[460px]">
@@ -193,65 +198,51 @@ function PdfPreview({ latestPdf, isMobile }: { latestPdf: any; isMobile: boolean
               className="block relative group h-full w-full"
             >
               <div className="relative bg-white rounded-xl shadow-lg h-full w-full overflow-hidden">
-                {/* PREVIEW VISUAL SEMPRE VISÍVEL */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-red-50 to-green-50">
-                  {/* Ícone do PDF */}
-                  <div className="relative mb-4">
-                    <div className="w-20 h-24 bg-red-500 rounded-lg shadow-lg flex items-center justify-center">
-                      <FileText className="h-10 w-10 text-white" />
-                    </div>
-                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">!</span>
+                {/* LOADING STATE */}
+                {imageLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto mb-2"></div>
+                      <div className="text-gray-600 text-sm">Carregando primeira página...</div>
                     </div>
                   </div>
+                )}
 
-                  {/* Informações do PDF */}
-                  <h3 className="text-lg font-bold text-gray-800 mb-2 line-clamp-2">{latestPdf.name}</h3>
-
-                  {/* Data de upload */}
-                  <p className="text-sm text-gray-600 mb-4">
-                    Publicado em {new Date(latestPdf.upload_date).toLocaleDateString("pt-PT")}
-                  </p>
-
-                  {/* Indicador de novo */}
-                  {new Date(latestPdf.upload_date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) && (
-                    <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold mb-4 animate-pulse">
-                      NOVO FOLHETO!
+                {/* ERROR STATE */}
+                {imageError && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-red-50 to-green-50 p-6 text-center">
+                    <div className="w-16 h-20 bg-red-500 rounded-lg shadow-lg flex items-center justify-center mb-4">
+                      <FileText className="h-8 w-8 text-white" />
                     </div>
-                  )}
-
-                  {/* Simulação de páginas */}
-                  <div className="flex space-x-2 mb-4">
-                    <div className="w-8 h-10 bg-white border-2 border-gray-300 rounded shadow-sm"></div>
-                    <div className="w-8 h-10 bg-white border-2 border-gray-300 rounded shadow-sm"></div>
-                    <div className="w-8 h-10 bg-white border-2 border-gray-300 rounded shadow-sm"></div>
-                    <span className="text-gray-400 self-center">...</span>
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">{latestPdf.name}</h3>
+                    <p className="text-sm text-gray-600 mb-4">Preview não disponível</p>
+                    <div className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-lg shadow-sm">
+                      <p className="text-sm text-gray-700 font-medium">📱 Clique para ver o folheto completo</p>
+                    </div>
                   </div>
+                )}
 
-                  {/* Call to action */}
-                  <div className="bg-white/80 backdrop-blur-sm px-4 py-2 rounded-lg shadow-sm">
-                    <p className="text-sm text-gray-700 font-medium">📱 Clique para ver o folheto completo</p>
-                  </div>
-                </div>
-
-                {/* IFRAME OCULTO (para tentar carregar em background) */}
-                {showIframe && (
-                  <iframe
-                    src={`${latestPdf.url}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
-                    className="w-full h-full absolute inset-0 opacity-0"
-                    style={{ border: "none", pointerEvents: "none" }}
-                    loading="lazy"
-                    title={`Preview do ${latestPdf.name}`}
-                    sandbox="allow-same-origin"
-                    referrerPolicy="no-referrer"
+                {/* PDF PRIMEIRA PÁGINA COMO IMAGEM */}
+                {!imageError && (
+                  <img
+                    src={pdfImageUrl || "/placeholder.svg"}
+                    alt={`Primeira página do ${latestPdf.name}`}
+                    className="w-full h-full object-contain"
+                    onLoad={handleImageLoad}
+                    onError={handleImageError}
+                    style={{
+                      display: imageLoading ? "none" : "block",
+                      objectFit: "contain",
+                      objectPosition: "center top",
+                    }}
                   />
                 )}
 
                 {/* Hover overlay */}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300 flex items-center justify-center rounded-xl">
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white/95 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg">
-                    <div className="flex items-center space-x-2 text-gray-800 font-medium text-sm">
-                      <FileText className="h-4 w-4" />
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white/95 backdrop-blur-sm px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg shadow-lg">
+                    <div className="flex items-center space-x-2 text-gray-800 font-medium text-xs sm:text-sm">
+                      <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
                       <span>Clique para abrir PDF completo</span>
                     </div>
                   </div>
