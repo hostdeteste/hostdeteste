@@ -181,15 +181,11 @@ function PdfPreview({ latestPdf, isMobile }: { latestPdf: any; isMobile: boolean
               className="block relative group h-full w-full"
             >
               <div className="relative bg-white rounded-xl shadow-lg h-full w-full overflow-hidden">
-                {/* ✅ IFRAME CORRIGIDO - SEM VIOLAÇÕES */}
                 <iframe
                   src={`${latestPdf.url}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
                   className="w-full h-full"
                   style={{ border: "none", pointerEvents: "none" }}
                   loading="lazy"
-                  title={`Preview do ${latestPdf.name}`}
-                  sandbox="allow-same-origin"
-                  referrerPolicy="no-referrer"
                 />
 
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300 flex items-center justify-center rounded-xl">
