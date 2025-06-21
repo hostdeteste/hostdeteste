@@ -7,6 +7,7 @@ import { useEffect, useState } from "react"
 export default function Hero() {
   const { latestPdf, loading } = useWeeklyPdfs()
   const [isMobile, setIsMobile] = useState(false)
+  const [pdfError, setPdfError] = useState(false)
 
   // Detectar mobile apenas uma vez
   useEffect(() => {
@@ -54,7 +55,7 @@ export default function Hero() {
             {loading ? (
               <PdfPreviewSkeleton isMobile={isMobile} />
             ) : latestPdf ? (
-              <PdfPreview latestPdf={latestPdf} isMobile={isMobile} />
+              <PdfPreview latestPdf={latestPdf} isMobile={isMobile} pdfError={pdfError} setPdfError={setPdfError} />
             ) : (
               <PdfPreviewFallback isMobile={isMobile} />
             )}
@@ -135,7 +136,36 @@ function PdfPreviewSkeleton({ isMobile }: { isMobile: boolean }) {
   )
 }
 
-function PdfPreview({ latestPdf, isMobile }: { latestPdf: any; isMobile: boolean }) {
+function PdfPreview({
+  latestPdf,
+  isMobile,
+  pdfError,
+  setPdfError,
+}: {
+  latestPdf: any
+  isMobile: boolean
+  pdfError: boolean
+  setPdfError: (error: boolean) => void
+}) {
+  const [showFallback, setShowFallback] = useState(false)
+
+  useEffect(() => {
+    // Reset error state when PDF changes
+    setPdfError(false)
+    setShowFallback(false)
+  }, [latestPdf.id, setPdfError])
+
+  const handleIframeError = () => {
+    console.log("❌ [HERO] Iframe failed to load PDF")
+    setPdfError(true)
+    setShowFallback(true)
+  }
+
+  const handleIframeLoad = () => {
+    console.log("✅ [HERO] Iframe loaded successfully")
+    setPdfError(false)
+  }
+
   return (
     <div className="relative w-full max-w-[460px]">
       {/* Header */}
@@ -148,6 +178,11 @@ function PdfPreview({ latestPdf, isMobile }: { latestPdf: any; isMobile: boolean
               <div className="flex items-center space-x-2">
                 {new Date(latestPdf.upload_date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) && (
                   <span className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">NOVO!</span>
+                )}
+                {pdfError && (
+                  <span className="bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                    PREVIEW INDISPONÍVEL
+                  </span>
                 )}
               </div>
             </div>
@@ -181,16 +216,44 @@ function PdfPreview({ latestPdf, isMobile }: { latestPdf: any; isMobile: boolean
               className="block relative group h-full w-full"
             >
               <div className="relative bg-white rounded-xl shadow-lg h-full w-full overflow-hidden">
-                {/* ✅ IFRAME CORRIGIDO - SEM VIOLAÇÕES */}
-                <iframe
-                  src={`${latestPdf.url}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
-                  className="w-full h-full"
-                  style={{ border: "none", pointerEvents: "none" }}
-                  loading="lazy"
-                  title={`Preview do ${latestPdf.name}`}
-                  sandbox="allow-same-origin"
-                  referrerPolicy="no-referrer"
-                />
+                {!showFallback ? (
+                  <>
+                    {/* TENTATIVA 1: Iframe normal */}
+                    <iframe
+                      src={`${latestPdf.url}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
+                      className="w-full h-full"
+                      style={{ border: "none", pointerEvents: "none" }}
+                      loading="lazy"
+                      title={`Preview do ${latestPdf.name}`}
+                      sandbox="allow-same-origin"
+                      referrerPolicy="no-referrer"
+                      onError={handleIframeError}
+                      onLoad={handleIframeLoad}
+                    />
+
+                    {/* TENTATIVA 2: Object embed como fallback */}
+                    <object
+                      data={`${latestPdf.url}#page=1&view=FitH&toolbar=0`}
+                      type="application/pdf"
+                      className="w-full h-full absolute inset-0"
+                      style={{ display: pdfError ? "block" : "none" }}
+                    >
+                      <embed
+                        src={`${latestPdf.url}#page=1&view=FitH&toolbar=0`}
+                        type="application/pdf"
+                        className="w-full h-full"
+                      />
+                    </object>
+                  </>
+                ) : (
+                  /* FALLBACK: Preview com imagem */
+                  <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+                    <div className="text-6xl mb-4">📄</div>
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">Preview Indisponível</h3>
+                    <p className="text-gray-600 mb-4">Clique para abrir o PDF completo</p>
+                    <div className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm">{latestPdf.name}</div>
+                  </div>
+                )}
 
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300 flex items-center justify-center rounded-xl">
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-white/95 backdrop-blur-sm px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg shadow-lg">
@@ -207,6 +270,21 @@ function PdfPreview({ latestPdf, isMobile }: { latestPdf: any; isMobile: boolean
         </div>
         <div className="absolute -bottom-4 -right-4 w-full h-full bg-gray-400/30 rounded-3xl -z-10 blur-sm"></div>
       </div>
+
+      {/* Debug info (apenas em desenvolvimento) */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="mt-4 p-2 bg-gray-100 rounded text-xs">
+          <div>
+            <strong>PDF URL:</strong> {latestPdf.url}
+          </div>
+          <div>
+            <strong>Error:</strong> {pdfError ? "Yes" : "No"}
+          </div>
+          <div>
+            <strong>Fallback:</strong> {showFallback ? "Yes" : "No"}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
