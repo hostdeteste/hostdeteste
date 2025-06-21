@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-export const dynamic = "force-dynamic"
+export const dynamic = "force_dynamic"
 
 export async function GET() {
   const debug = {
@@ -82,31 +82,24 @@ export async function GET() {
     r2Test.error = error instanceof Error ? error.message : String(error)
   }
 
-  // Teste de PDFs - CORRIGIDO
+  // Teste de PDFs - DIRETO NO SUPABASE
   const pdfTest = { count: 0, error: null, latest: null }
   try {
-    // Construir URL corretamente
-    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const { createClient } = await import("@supabase/supabase-js")
+      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 
-    console.log("🔍 [DEBUG] Testando URL:", `${baseUrl}/api/weekly-pdfs`)
+      const { data, error } = await supabase
+        .from("weekly_pdfs")
+        .select("id, name, file_path, url, week, year, created_at")
+        .order("created_at", { ascending: false })
 
-    const response = await fetch(`${baseUrl}/api/weekly-pdfs`, {
-      cache: "no-store",
-      headers: {
-        "User-Agent": "Debug-Check/1.0",
-      },
-    })
-
-    console.log("📊 [DEBUG] Response status:", response.status)
-
-    const data = await response.json()
-    console.log("📋 [DEBUG] Response data:", data)
-
-    if (data.success) {
-      pdfTest.count = data.pdfs?.length || 0
-      pdfTest.latest = data.latest?.name || null
-    } else {
-      pdfTest.error = data.error
+      if (error) {
+        pdfTest.error = error.message
+      } else {
+        pdfTest.count = data?.length || 0
+        pdfTest.latest = data?.[0]?.name || null
+      }
     }
   } catch (error) {
     console.error("❌ [DEBUG] PDF test error:", error)
