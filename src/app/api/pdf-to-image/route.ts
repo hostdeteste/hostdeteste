@@ -1,4 +1,7 @@
-import { type NextRequest, NextResponse } from "next/server"
+// app/api/pdf-to-image/route.ts
+export const runtime = "nodejs"
+
+import { NextRequest, NextResponse } from "next/server"
 
 export async function GET(request: NextRequest) {
   try {
@@ -6,46 +9,46 @@ export async function GET(request: NextRequest) {
     const pdfUrl = searchParams.get("url")
 
     if (!pdfUrl) {
-      return NextResponse.json({ error: "URL do PDF é obrigatória" }, { status: 400 })
+      return NextResponse.json(
+        { error: "URL do PDF é obrigatória" },
+        { status: 400 }
+      )
     }
 
-    // Fetch do PDF
+    // 1) Fetch do PDF
     const pdfResponse = await fetch(pdfUrl)
     if (!pdfResponse.ok) {
       throw new Error(`Erro ao buscar PDF: ${pdfResponse.status}`)
     }
-
     const pdfBuffer = await pdfResponse.arrayBuffer()
 
-    // Usar PDF.js para converter primeira página em imagem
-    // @ts-ignore
+    // 2) Importar PDF.js (modo legacy)
+    // @ts-ignore – as declarações de tipo não existem neste caminho
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.js")
 
-    // Configurar worker
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
-
-    // Carregar PDF
+    // 3) Carregar o PDF e obter a 1ª página
     const pdf = await pdfjsLib.getDocument({ data: pdfBuffer }).promise
-    const page = await pdf.getPage(1) // Primeira página
+    const page = await pdf.getPage(1)
 
-    // Configurar canvas
-    const viewport = page.getViewport({ scale: 2.0 }) // Scale 2x para qualidade
-    const canvas = new (await import("canvas")).Canvas(viewport.width, viewport.height)
+    // 4) Criar canvas no Node
+    const viewport = page.getViewport({ scale: 2.0 })
+    const { createCanvas } = await import("canvas")
+    const canvas = createCanvas(viewport.width, viewport.height)
     const context = canvas.getContext("2d")
 
-    // Renderizar página
+    // 5) Renderizar página no canvas
     await page.render({
       canvasContext: context,
-      viewport: viewport,
+      viewport,
     }).promise
 
-    // Converter para PNG
+    // 6) Exportar como PNG
     const imageBuffer = canvas.toBuffer("image/png")
 
     return new NextResponse(imageBuffer, {
       headers: {
         "Content-Type": "image/png",
-        "Cache-Control": "public, max-age=3600", // Cache por 1 hora
+        "Cache-Control": "public, max-age=3600", // 1 hora
       },
     })
   } catch (error) {
@@ -55,7 +58,7 @@ export async function GET(request: NextRequest) {
         error: "Erro ao converter PDF para imagem",
         details: error instanceof Error ? error.message : "Erro desconhecido",
       },
-      { status: 500 },
+      { status: 500 }
     )
   }
 }
