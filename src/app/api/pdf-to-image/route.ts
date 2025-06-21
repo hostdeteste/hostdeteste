@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const pdfBuffer = await pdfResponse.arrayBuffer()
 
     // Usar PDF.js para converter primeira página em imagem
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs")
+    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.d.mjs")
 
     // Configurar worker
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
