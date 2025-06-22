@@ -122,8 +122,12 @@ export default function ProductPage() {
 
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800 mb-2">Descrição</h3>
-                  <p className="text-gray-600 leading-relaxed">{product?.description}</p>
+                  <div className="text-gray-600 leading-relaxed">
+                    {product?.description.split('\n').map((linha, index) => (
+                  <p key={index} className="mb-2 last:mb-0">{linha}</p>
+                 ))}
                 </div>
+</div>
 
                 <div className="pt-4 border-t border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-800 mb-2">Características</h3>
