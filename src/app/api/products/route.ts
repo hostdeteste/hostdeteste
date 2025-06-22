@@ -114,7 +114,7 @@ async function loadProductsFromSupabase(): Promise<Product[]> {
   }
 }
 
-// Função para salvar produtos
+// Função para salvar produtos - CORRIGIDA
 async function saveProductsToSupabase(products: Product[]): Promise<void> {
   try {
     console.log(`💾 [PRODUCTS] Salvando ${products.length} produtos no Supabase...`)
@@ -130,23 +130,34 @@ async function saveProductsToSupabase(products: Product[]): Promise<void> {
     const { createClient } = await import("@supabase/supabase-js")
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Limpar tabela e inserir novos dados
-    const { error: deleteError } = await supabase.from("products").delete().neq("id", "impossible-id")
+    // ✅ CORREÇÃO: Limpar tabela de forma segura
+    console.log("🗑️ [PRODUCTS] Limpando produtos existentes...")
+    const { error: deleteError } = await supabase
+      .from("products")
+      .delete()
+      .gte("order", 0) // Deleta todos os produtos onde order >= 0
 
     if (deleteError) {
       console.error("❌ [PRODUCTS] Erro ao limpar produtos:", deleteError)
       throw new Error(`Erro ao limpar produtos: ${deleteError.message}`)
     }
 
+    console.log("✅ [PRODUCTS] Produtos existentes removidos")
+
     if (products.length > 0) {
+      console.log(`📝 [PRODUCTS] Inserindo ${products.length} novos produtos...`)
       const supabaseProducts = products.map(transformProductToSupabase)
 
-      const { error: insertError } = await supabase.from("products").insert(supabaseProducts)
+      const { error: insertError } = await supabase
+        .from("products")
+        .insert(supabaseProducts)
 
       if (insertError) {
         console.error("❌ [PRODUCTS] Erro ao inserir produtos:", insertError)
         throw new Error(`Erro ao inserir produtos: ${insertError.message}`)
       }
+
+      console.log("✅ [PRODUCTS] Novos produtos inseridos")
     }
 
     // Limpar cache
@@ -181,7 +192,7 @@ export async function GET() {
             serviceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
           },
         },
-        { status: 200 }, // Mudança: retornar 200 em vez de 500 para não quebrar o frontend
+        { status: 200 }, // Retorna 200 para não quebrar o frontend
       )
     }
 
@@ -197,7 +208,7 @@ export async function GET() {
         success: true,
         count: products.length,
         timestamp: new Date().toISOString(),
-        cached: true,
+        cached: Date.now() - productsCacheTime < CACHE_DURATION,
       })
     } catch (storageError) {
       console.error("💥 [PRODUCTS] Erro no storage:", storageError)
@@ -211,7 +222,7 @@ export async function GET() {
           details: storageError instanceof Error ? storageError.message : String(storageError),
           fallback: true,
         },
-        { status: 200 }, // Mudança: retornar 200 em vez de 500 para não quebrar o frontend
+        { status: 200 }, // Retorna 200 para não quebrar o frontend
       )
     }
   } catch (error) {
@@ -224,7 +235,7 @@ export async function GET() {
         error: "Erro interno do servidor",
         details: error instanceof Error ? error.message : String(error),
       },
-      { status: 200 }, // Mudança: retornar 200 em vez de 500 para não quebrar o frontend
+      { status: 200 }, // Retorna 200 para não quebrar o frontend
     )
   }
 }
@@ -269,6 +280,7 @@ export async function POST(request: Request) {
         success: true,
         count: products.length,
         timestamp: new Date().toISOString(),
+        message: `${products.length} produtos salvos com sucesso`,
       })
     } catch (storageError) {
       console.error("💥 [PRODUCTS] Erro no storage:", storageError)
