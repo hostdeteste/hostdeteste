@@ -236,7 +236,7 @@ function PdfPreviewFallback({ isMobile }: { isMobile: boolean }) {
               <div className="text-center p-8">
                 <div className="text-6xl mb-4">⏰</div>
                 <h3 className="text-xl font-bold text-gray-800 mb-2">Em Breve</h3>
-                <p className="text-gray-600">Novo folheto chegando!</p>
+                <p className="text-gray-600">Novo folheto disponível já na próxima semana!</p>
               </div>
             </div>
           </div>
