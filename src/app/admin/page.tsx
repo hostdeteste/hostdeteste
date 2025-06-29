@@ -118,6 +118,9 @@ export default function AdminPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    console.log("📝 [ADMIN] Dados do formulário:", formData)
+
     if (!formData.name || !formData.description || !formData.category) {
       showStatus("error", "Por favor, preencha todos os campos obrigatórios")
       return
@@ -125,24 +128,34 @@ export default function AdminPage() {
 
     try {
       if (editingProduct) {
+        console.log("✏️ [ADMIN] Editando produto:", editingProduct)
         await updateProduct(editingProduct, formData)
         setEditingProduct(null)
         showStatus("success", "Produto atualizado com sucesso!")
       } else {
-        // Adicionar produto SEM colocar em destaque automaticamente
-        await addProduct({
-          ...formData,
-          price: 0, // Preço padrão 0
-          featured: false, // NÃO colocar em destaque automaticamente
-          order: 0, // Ordem padrão
+        console.log("➕ [ADMIN] Adicionando novo produto")
+
+        // Preparar dados completos do produto
+        const productData = {
+          name: formData.name.trim(),
+          description: formData.description.trim(),
+          category: formData.category,
+          price: formData.price || 0,
+          featured: false, // Não colocar em destaque automaticamente
+          order: 0,
           image: formData.image || "/placeholder.svg?height=300&width=300",
-        } as Omit<Product, "id">)
+        }
+
+        console.log("📋 [ADMIN] Dados do produto a adicionar:", productData)
+
+        await addProduct(productData)
         setIsAddingProduct(false)
         showStatus("success", "Produto adicionado à base de dados! Agora pode selecioná-lo para destaque.")
       }
       setFormData({})
     } catch (error) {
-      showStatus("error", "Erro ao salvar produto")
+      console.error("❌ [ADMIN] Erro ao salvar produto:", error)
+      showStatus("error", `Erro ao salvar produto: ${error instanceof Error ? error.message : "Erro desconhecido"}`)
     }
   }
 

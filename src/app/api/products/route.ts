@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-export const dynamic = "force-dynamic"
+export const dynamic = "force_dynamic"
 
 // Tipos
 interface Product {
@@ -38,18 +38,25 @@ function transformSupabaseProduct(data: any): Product {
 }
 
 function transformProductToSupabase(product: Product): any {
-  return {
+  const supabaseProduct = {
     id: product.id,
-    name: product.name,
-    description: product.description,
-    price: product.price,
-    image: product.image,
-    category: product.category,
-    featured: product.featured,
-    order: product.order,
+    name: product.name || "",
+    description: product.description || "",
+    price: Number(product.price) || 0,
+    image: product.image || "",
+    category: product.category || "",
+    featured: Boolean(product.featured),
+    order: Number(product.order) || 0,
     created_at: product.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }
+
+  console.log("🔄 [PRODUCTS] Transformando produto para Supabase:", {
+    original: product,
+    transformed: supabaseProduct,
+  })
+
+  return supabaseProduct
 }
 
 // Função para carregar produtos
@@ -132,10 +139,7 @@ async function saveProductsToSupabase(products: Product[]): Promise<void> {
 
     // ✅ CORREÇÃO: Limpar tabela de forma segura
     console.log("🗑️ [PRODUCTS] Limpando produtos existentes...")
-    const { error: deleteError } = await supabase
-      .from("products")
-      .delete()
-      .gte("order", 0) // Deleta todos os produtos onde order >= 0
+    const { error: deleteError } = await supabase.from("products").delete().gte("order", 0) // Deleta todos os produtos onde order >= 0
 
     if (deleteError) {
       console.error("❌ [PRODUCTS] Erro ao limpar produtos:", deleteError)
@@ -148,9 +152,7 @@ async function saveProductsToSupabase(products: Product[]): Promise<void> {
       console.log(`📝 [PRODUCTS] Inserindo ${products.length} novos produtos...`)
       const supabaseProducts = products.map(transformProductToSupabase)
 
-      const { error: insertError } = await supabase
-        .from("products")
-        .insert(supabaseProducts)
+      const { error: insertError } = await supabase.from("products").insert(supabaseProducts)
 
       if (insertError) {
         console.error("❌ [PRODUCTS] Erro ao inserir produtos:", insertError)
@@ -240,7 +242,7 @@ export async function GET() {
   }
 }
 
-// POST - Salvar produtos
+// POST - Salvar produtos - VERSÃO CORRIGIDA
 export async function POST(request: Request) {
   try {
     console.log("💾 [PRODUCTS] === SALVANDO PRODUTOS ===")
@@ -272,15 +274,42 @@ export async function POST(request: Request) {
     }
 
     try {
-      await saveProductsToSupabase(products)
+      // CORREÇÃO: Usar upsert em vez de delete + insert para evitar conflitos
+      console.log("🔄 [PRODUCTS] Usando estratégia de upsert...")
 
-      console.log("✅ [PRODUCTS] Produtos salvos com sucesso")
+      const { createClient } = await import("@supabase/supabase-js")
+      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+      // Preparar dados para Supabase
+      const supabaseProducts = products.map(transformProductToSupabase)
+      console.log("📝 [PRODUCTS] Dados preparados para Supabase:", supabaseProducts.length, "produtos")
+
+      // Usar upsert para inserir ou atualizar produtos
+      const { data, error } = await supabase
+        .from("products")
+        .upsert(supabaseProducts, {
+          onConflict: "id",
+          ignoreDuplicates: false,
+        })
+        .select()
+
+      if (error) {
+        console.error("❌ [PRODUCTS] Erro no upsert:", error)
+        throw new Error(`Erro no upsert: ${error.message}`)
+      }
+
+      console.log("✅ [PRODUCTS] Produtos salvos com sucesso:", data?.length || 0, "registros")
+
+      // Limpar cache
+      productsCache = null
+      productsCacheTime = 0
 
       return NextResponse.json({
         success: true,
         count: products.length,
+        saved: data?.length || 0,
         timestamp: new Date().toISOString(),
-        message: `${products.length} produtos salvos com sucesso`,
+        message: `${products.length} produtos processados com sucesso`,
       })
     } catch (storageError) {
       console.error("💥 [PRODUCTS] Erro no storage:", storageError)

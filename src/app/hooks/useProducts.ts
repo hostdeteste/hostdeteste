@@ -206,13 +206,33 @@ export function useProducts() {
   }
 
   const addProduct = async (product: Omit<Product, "id">) => {
-    const newProduct: Product = {
-      ...product,
-      id: Date.now().toString(),
-      price: 0,
+    try {
+      console.log("➕ [PRODUCTS] Adicionando produto:", product)
+
+      const newProduct: Product = {
+        ...product,
+        id: `product_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // ID mais único
+        price: product.price || 0,
+        featured: product.featured || false,
+        order: product.order || 0,
+      }
+
+      console.log("📝 [PRODUCTS] Produto preparado:", newProduct)
+
+      // Adicionar à lista local primeiro (otimistic update)
+      const newProducts = [...products, newProduct]
+      setProducts(newProducts)
+
+      // Salvar no servidor
+      await saveProducts(newProducts)
+
+      console.log("✅ [PRODUCTS] Produto adicionado com sucesso")
+    } catch (error) {
+      console.error("❌ [PRODUCTS] Erro ao adicionar produto:", error)
+      // Reverter mudança local em caso de erro
+      await loadProducts()
+      throw error
     }
-    const newProducts = [...products, newProduct]
-    await saveProducts(newProducts)
   }
 
   const updateProduct = async (id: string, updates: Partial<Product>) => {
