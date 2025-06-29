@@ -135,8 +135,8 @@ export default function AdminPage() {
       } else {
         console.log("➕ [ADMIN] Adicionando novo produto")
 
-        // Preparar dados completos do produto
-        const productData = {
+        // Preparar dados completos do produto com todas as propriedades necessárias
+        const productData: Omit<Product, "id"> = {
           name: formData.name.trim(),
           description: formData.description.trim(),
           category: formData.category,
@@ -331,12 +331,14 @@ export default function AdminPage() {
                 onClick={async () => {
                   try {
                     console.log("🧪 [DEBUG] Testando adição de produto...")
-                    const testProduct = {
+                    const testProduct: Omit<Product, "id"> = {
                       name: `Produto Teste ${Date.now()}`,
                       description: "Produto criado para teste de debug",
                       category: "Teste",
                       price: 0,
                       image: "/placeholder.svg",
+                      featured: false,
+                      order: 0,
                     }
 
                     await addProduct(testProduct)
