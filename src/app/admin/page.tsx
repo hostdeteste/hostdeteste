@@ -305,6 +305,73 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Debug Section - apenas em desenvolvimento */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
+            <h3 className="text-lg font-semibold text-yellow-800 mb-4">🔧 Debug Tools</h3>
+            <div className="flex flex-wrap gap-4">
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await fetch("/api/debug/supabase-schema")
+                    const data = await response.json()
+                    console.log("🔍 [DEBUG] Schema Supabase:", data)
+                    alert("Verifique o console para detalhes do schema")
+                  } catch (error) {
+                    console.error("❌ [DEBUG] Erro:", error)
+                    alert("Erro ao verificar schema")
+                  }
+                }}
+                className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
+              >
+                Verificar Schema Supabase
+              </button>
+
+              <button
+                onClick={async () => {
+                  try {
+                    console.log("🧪 [DEBUG] Testando adição de produto...")
+                    const testProduct = {
+                      name: `Produto Teste ${Date.now()}`,
+                      description: "Produto criado para teste de debug",
+                      category: "Teste",
+                      price: 0,
+                      image: "/placeholder.svg",
+                    }
+
+                    await addProduct(testProduct)
+                    showStatus("success", "Produto de teste adicionado com sucesso!")
+                  } catch (error) {
+                    console.error("❌ [DEBUG] Erro no teste:", error)
+                    showStatus(
+                      "error",
+                      `Erro no teste: ${error instanceof Error ? error.message : "Erro desconhecido"}`,
+                    )
+                  }
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Testar Adição de Produto
+              </button>
+
+              <button
+                onClick={() => {
+                  console.log("📊 [DEBUG] Estado atual:")
+                  console.log("- Produtos:", products.length)
+                  console.log("- Loading:", loading)
+                  console.log("- Saving:", saving)
+                  console.log("- Error:", error)
+                  console.log("- FormData:", formData)
+                  alert("Verifique o console para detalhes do estado")
+                }}
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Ver Estado Atual
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow-md">
@@ -367,7 +434,7 @@ export default function AdminPage() {
                         Semana {latestPdf.week}/{latestPdf.year}
                       </span>
                       <span>•</span>
-                      <span>Enviado em {new Date(latestPdf.uploadDate).toLocaleDateString()}</span>
+                      <span>Enviado em {new Date(latestPdf.upload_date).toLocaleDateString()}</span>
                     </div>
                   </div>
                 </div>
@@ -435,7 +502,7 @@ export default function AdminPage() {
                             Semana {pdf.week}/{pdf.year}
                           </span>
                           <span>•</span>
-                          <span>{new Date(pdf.uploadDate).toLocaleDateString()}</span>
+                          <span>{new Date(pdf.upload_date).toLocaleDateString()}</span>
                           {pdf.id === latestPdf?.id && (
                             <>
                               <span>•</span>
