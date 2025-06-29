@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic"
 
 export async function GET() {
   try {
-    console.log("🧪 [TEST] === TESTANDO INSERÇÃO DE PRODUTOS ===")
+    console.log("🧪 [SIMPLE-TEST] === TESTE SIMPLES DE PRODUTOS ===")
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -23,138 +23,127 @@ export async function GET() {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // 1. Verificar se a tabela existe e tem a estrutura correta
-    console.log("📋 [TEST] Verificando estrutura da tabela...")
+    // 1. Testar leitura simples
+    console.log("📖 [SIMPLE-TEST] Testando leitura...")
+    const { data: readData, error: readError } = await supabase.from("products").select("*").limit(5)
 
-    const { data: columns, error: columnsError } = await supabase
-      .from("information_schema.columns")
-      .select("column_name, data_type, is_nullable, column_default")
-      .eq("table_name", "products")
-      .order("ordinal_position")
-
-    if (columnsError) {
-      console.error("❌ [TEST] Erro ao verificar colunas:", columnsError)
+    if (readError) {
+      console.error("❌ [SIMPLE-TEST] Erro na leitura:", readError)
       return NextResponse.json({
         success: false,
-        error: "Erro ao verificar estrutura da tabela",
-        details: columnsError.message,
+        error: "Erro ao ler produtos",
+        details: readError.message,
+        step: "read",
       })
     }
 
-    // 2. Contar produtos existentes
-    const { count: existingCount, error: countError } = await supabase
-      .from("products")
-      .select("*", { count: "exact", head: true })
+    console.log("✅ [SIMPLE-TEST] Leitura OK:", readData?.length, "produtos")
 
-    if (countError) {
-      console.error("❌ [TEST] Erro ao contar produtos:", countError)
-    }
-
-    // 3. Testar inserção de produto
-    console.log("🧪 [TEST] Testando inserção de produto...")
-
+    // 2. Testar inserção simples
+    console.log("➕ [SIMPLE-TEST] Testando inserção...")
     const testProduct = {
-      id: `test_api_${Date.now()}`,
-      name: "Produto Teste API",
-      description: "Produto criado via API para teste de inserção",
+      id: `test_simple_${Date.now()}`,
+      name: "Produto Teste Simples",
+      description: "Descrição do produto teste",
       category: "Teste",
       price: 0,
-      image: "/placeholder.svg?height=300&width=300",
+      image: "/test.jpg",
       featured: false,
       order: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     }
 
     const { data: insertData, error: insertError } = await supabase.from("products").insert([testProduct]).select()
 
-    let insertSuccess = false
-    let insertDetails = null
-
     if (insertError) {
-      console.error("❌ [TEST] Erro na inserção:", insertError)
-      insertDetails = {
-        error: insertError.message,
-        code: insertError.code,
-        details: insertError.details,
-        hint: insertError.hint,
-      }
+      console.error("❌ [SIMPLE-TEST] Erro na inserção:", insertError)
+      return NextResponse.json({
+        success: false,
+        error: "Erro ao inserir produto",
+        details: {
+          message: insertError.message,
+          code: insertError.code,
+          details: insertError.details,
+          hint: insertError.hint,
+        },
+        step: "insert",
+        testProduct,
+      })
+    }
+
+    console.log("✅ [SIMPLE-TEST] Inserção OK:", insertData)
+
+    // 3. Testar atualização
+    console.log("✏️ [SIMPLE-TEST] Testando atualização...")
+    const { data: updateData, error: updateError } = await supabase
+      .from("products")
+      .update({ name: "Produto Teste Atualizado" })
+      .eq("id", testProduct.id)
+      .select()
+
+    if (updateError) {
+      console.error("❌ [SIMPLE-TEST] Erro na atualização:", updateError)
     } else {
-      console.log("✅ [TEST] Inserção bem-sucedida:", insertData)
-      insertSuccess = true
-      insertDetails = insertData
+      console.log("✅ [SIMPLE-TEST] Atualização OK:", updateData)
     }
 
-    // 4. Se inseriu com sucesso, tentar deletar
-    if (insertSuccess && insertData && insertData.length > 0) {
-      console.log("🗑️ [TEST] Removendo produto de teste...")
-      const { error: deleteError } = await supabase.from("products").delete().eq("id", testProduct.id)
+    // 4. Testar deleção
+    console.log("🗑️ [SIMPLE-TEST] Testando deleção...")
+    const { error: deleteError } = await supabase.from("products").delete().eq("id", testProduct.id)
 
-      if (deleteError) {
-        console.error("⚠️ [TEST] Erro ao deletar produto de teste:", deleteError)
-      } else {
-        console.log("✅ [TEST] Produto de teste removido com sucesso")
-      }
+    if (deleteError) {
+      console.error("❌ [SIMPLE-TEST] Erro na deleção:", deleteError)
+    } else {
+      console.log("✅ [SIMPLE-TEST] Deleção OK")
     }
 
-    // 5. Verificar políticas RLS
-    console.log("🔒 [TEST] Verificando políticas RLS...")
-
-    const { data: policies, error: policiesError } = await supabase
-      .from("pg_policies")
-      .select("policyname, permissive, roles, cmd, qual")
-      .eq("tablename", "products")
-
-    // 6. Testar leitura pública (sem service role)
-    console.log("👁️ [TEST] Testando leitura pública...")
-
-    const publicSupabase = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "")
-    const { data: publicData, error: publicError } = await publicSupabase.from("products").select("id, name").limit(1)
+    // 5. Contar produtos finais
+    const { count: finalCount, error: countError } = await supabase
+      .from("products")
+      .select("*", { count: "exact", head: true })
 
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
       tests: {
-        tableStructure: {
-          columns: columns || [],
-          columnsCount: columns?.length || 0,
-          error: columnsError?.message,
+        read: {
+          success: !readError,
+          count: readData?.length || 0,
+          data: readData?.slice(0, 2), // Apenas os primeiros 2 para não sobrecarregar
+          error: readError?.message,
         },
-        existingData: {
-          count: existingCount || 0,
-          error: countError?.message,
-        },
-        insertion: {
-          success: insertSuccess,
+        insert: {
+          success: !insertError,
           testProduct,
-          result: insertDetails,
+          result: insertData,
           error: insertError?.message,
         },
-        policies: {
-          data: policies || [],
-          count: policies?.length || 0,
-          error: policiesError?.message,
+        update: {
+          success: !updateError,
+          result: updateData,
+          error: updateError?.message,
         },
-        publicRead: {
-          success: !publicError,
-          data: publicData || [],
-          error: publicError?.message,
+        delete: {
+          success: !deleteError,
+          error: deleteError?.message,
+        },
+        finalCount: {
+          count: finalCount || 0,
+          error: countError?.message,
         },
       },
-      recommendations: [
-        "1. Execute o script SQL para recriar a tabela",
-        "2. Verifique se as políticas RLS estão corretas",
-        "3. Confirme que o service role key está configurado",
-        "4. Teste a inserção via painel admin",
-      ],
+      environment: {
+        supabaseUrl,
+        hasServiceKey: !!supabaseServiceKey,
+        serviceKeyLength: supabaseServiceKey?.length || 0,
+      },
     })
   } catch (error) {
-    console.error("💥 [TEST] Erro geral:", error)
+    console.error("💥 [SIMPLE-TEST] Erro geral:", error)
 
     return NextResponse.json(
       {
         success: false,
-        error: "Erro ao testar produtos",
+        error: "Erro geral no teste",
         details: error instanceof Error ? error.message : String(error),
         timestamp: new Date().toISOString(),
       },
