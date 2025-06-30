@@ -351,13 +351,13 @@ export function useProducts() {
     try {
       console.log("➕ [PRODUCTS] Adicionando produto:", product)
 
-      // Gerar EAN-13 único
+      // Gerar EAN-13 único (apenas o código, sem prefixos)
       let ean13: string
       let attempts = 0
       const maxAttempts = 100
 
       do {
-        ean13 = generateEAN13()
+        ean13 = generateEAN13() // Apenas o EAN-13, sem prefixos
         attempts++
 
         if (attempts > maxAttempts) {
@@ -367,16 +367,17 @@ export function useProducts() {
 
       const newProduct: Product = {
         ...product,
-        id: ean13, // Usar EAN-13 como ID
+        id: ean13, // ID é apenas o EAN-13 puro
         price: product.price || 0,
         featured: product.featured || false,
         order: product.order || 0,
       }
 
-      console.log("📝 [PRODUCTS] Produto preparado com EAN-13:", {
+      console.log("📝 [PRODUCTS] Produto preparado com EAN-13 puro:", {
         ...newProduct,
         ean13Valid: validateEAN13(newProduct.id),
         ean13: newProduct.id,
+        idLength: newProduct.id.length,
       })
 
       // Adicionar à lista local primeiro (otimistic update)
@@ -386,7 +387,7 @@ export function useProducts() {
       // Salvar no servidor
       await saveProducts(newProducts)
 
-      console.log("✅ [PRODUCTS] Produto adicionado com sucesso - EAN-13:", newProduct.id)
+      console.log("✅ [PRODUCTS] Produto adicionado com EAN-13 puro:", newProduct.id)
     } catch (error) {
       console.error("❌ [PRODUCTS] Erro ao adicionar produto:", error)
       // Reverter mudança local em caso de erro
