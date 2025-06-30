@@ -23,6 +23,7 @@ import {
   Calendar,
   Star,
   StarOff,
+  Barcode,
 } from "lucide-react"
 import LoginForm from "./components/LoginForm"
 import ImageUpload from "./components/ImageUpload"
@@ -54,6 +55,7 @@ export default function AdminPage() {
     refreshProducts,
     error,
     lastUpdate,
+    validateEAN13,
   } = useProducts()
   const [isAddingProduct, setIsAddingProduct] = useState(false)
   const [editingProduct, setEditingProduct] = useState<string | null>(null)
@@ -86,8 +88,9 @@ export default function AdminPage() {
       featuredCount: featuredProducts.length,
       error,
       timestamp: new Date().toISOString(),
+      ean13Products: products.filter((p) => validateEAN13(p.id)).length,
     })
-  }, [loading, products, featuredProducts, error])
+  }, [loading, products, featuredProducts, error, validateEAN13])
 
   // Formatar a data da última atualização
   useEffect(() => {
@@ -198,7 +201,7 @@ export default function AdminPage() {
 
         await addProduct(productData)
         setIsAddingProduct(false)
-        showStatus("success", "Produto adicionado à base de dados! Agora pode selecioná-lo para destaque.")
+        showStatus("success", "Produto adicionado com EAN-13 gerado automaticamente!")
       }
       setFormData({})
     } catch (error) {
@@ -311,6 +314,10 @@ export default function AdminPage() {
                 <div className="flex items-center space-x-1 text-sm text-blue-600">
                   <Database className="h-4 w-4" />
                   <span>{products.length} produtos na base</span>
+                </div>
+                <div className="flex items-center space-x-1 text-sm text-purple-600">
+                  <Barcode className="h-4 w-4" />
+                  <span>EAN-13 Automático</span>
                 </div>
                 <div className="flex items-center space-x-1 text-sm text-gray-600">
                   <Clock className="h-4 w-4" />
@@ -589,15 +596,31 @@ export default function AdminPage() {
           >
             <Plus className="h-5 w-5" />
             <span>Adicionar Produto à Base de Dados</span>
+            <Barcode className="h-5 w-5" />
           </button>
+          <p className="text-sm text-gray-600 mt-2">
+            ✨ Cada produto recebe automaticamente um código EAN-13 único válido
+          </p>
         </div>
 
         {/* Add/Edit Product Form */}
         {(isAddingProduct || editingProduct) && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 className="text-xl font-bold text-gray-800 mb-6">
-              {editingProduct ? "Editar Produto" : "Adicionar Novo Produto"}
+            <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center space-x-2">
+              <span>{editingProduct ? "Editar Produto" : "Adicionar Novo Produto"}</span>
+              {!editingProduct && <Barcode className="h-6 w-6 text-purple-600" />}
             </h2>
+            {!editingProduct && (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+                <div className="flex items-center space-x-2">
+                  <Barcode className="h-5 w-5 text-purple-600" />
+                  <span className="font-medium text-purple-800">EAN-13 Automático</span>
+                </div>
+                <p className="text-purple-700 text-sm mt-1">
+                  O sistema irá gerar automaticamente um código de barras EAN-13 único e válido para este produto.
+                </p>
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Basic Info */}
               <div className="grid grid-cols-1 gap-4">
@@ -658,6 +681,7 @@ export default function AdminPage() {
                 >
                   <Save className="h-4 w-4" />
                   <span>{editingProduct ? "Atualizar" : "Adicionar à Base de Dados"}</span>
+                  {!editingProduct && <Barcode className="h-4 w-4" />}
                 </button>
                 <button
                   type="button"
@@ -705,6 +729,17 @@ export default function AdminPage() {
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-800">{product.name}</h3>
                     <p className="text-sm text-gray-600">{product.category}</p>
+                    <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                      <Barcode className="h-3 w-3" />
+                      <span className="font-mono">{product.id}</span>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs ${
+                          validateEAN13(product.id) ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                        }`}
+                      >
+                        {validateEAN13(product.id) ? "EAN-13 Válido" : "ID Antigo"}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     <button
@@ -777,15 +812,28 @@ export default function AdminPage() {
                     className="w-full h-32 object-cover rounded-lg mb-3"
                   />
                   <h3 className="font-semibold text-gray-800 mb-1">{product.name}</h3>
-                  <p className="text-sm text-gray-600 mb-3">{product.category}</p>
+                  <p className="text-sm text-gray-600 mb-2">{product.category}</p>
+                  <div className="flex items-center space-x-1 text-xs text-gray-500 mb-3">
+                    <Barcode className="h-3 w-3" />
+                    <span className="font-mono text-xs">{product.id}</span>
+                  </div>
                   <div className="flex justify-between items-center">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        product.featured ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      {product.featured ? "⭐ Em Destaque" : "Normal"}
-                    </span>
+                    <div className="flex flex-col space-y-1">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          product.featured ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {product.featured ? "⭐ Em Destaque" : "Normal"}
+                      </span>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          validateEAN13(product.id) ? "bg-purple-100 text-purple-800" : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
+                        {validateEAN13(product.id) ? "EAN-13" : "ID Antigo"}
+                      </span>
+                    </div>
                     <div className="flex space-x-1">
                       <button
                         onClick={() => handleToggleFeatured(product.id)}

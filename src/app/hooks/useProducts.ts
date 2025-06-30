@@ -13,6 +13,53 @@ export interface Product {
   order: number
 }
 
+// Função para gerar código EAN-13 aleatório válido
+function generateEAN13(): string {
+  // Gerar os primeiros 12 dígitos aleatoriamente
+  let code = ""
+  for (let i = 0; i < 12; i++) {
+    code += Math.floor(Math.random() * 10).toString()
+  }
+
+  // Calcular dígito de verificação
+  let sum = 0
+  for (let i = 0; i < 12; i++) {
+    const digit = Number.parseInt(code[i])
+    if (i % 2 === 0) {
+      // Posições ímpares (1, 3, 5, 7, 9, 11) - índices pares
+      sum += digit
+    } else {
+      // Posições pares (2, 4, 6, 8, 10, 12) - índices ímpares
+      sum += digit * 3
+    }
+  }
+
+  // Calcular dígito de verificação
+  const checkDigit = (10 - (sum % 10)) % 10
+
+  return code + checkDigit.toString()
+}
+
+// Função para validar se um EAN-13 é válido
+function validateEAN13(ean: string): boolean {
+  if (ean.length !== 13 || !/^\d{13}$/.test(ean)) {
+    return false
+  }
+
+  let sum = 0
+  for (let i = 0; i < 12; i++) {
+    const digit = Number.parseInt(ean[i])
+    if (i % 2 === 0) {
+      sum += digit
+    } else {
+      sum += digit * 3
+    }
+  }
+
+  const checkDigit = (10 - (sum % 10)) % 10
+  return checkDigit === Number.parseInt(ean[12])
+}
+
 export function useProducts() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -235,6 +282,7 @@ export function useProducts() {
           category: p.category,
           hasImage: !!p.image,
           featured: p.featured,
+          ean13Valid: validateEAN13(p.id),
         })),
       )
 
@@ -303,15 +351,33 @@ export function useProducts() {
     try {
       console.log("➕ [PRODUCTS] Adicionando produto:", product)
 
+      // Gerar EAN-13 único
+      let ean13: string
+      let attempts = 0
+      const maxAttempts = 100
+
+      do {
+        ean13 = generateEAN13()
+        attempts++
+
+        if (attempts > maxAttempts) {
+          throw new Error("Não foi possível gerar um EAN-13 único após múltiplas tentativas")
+        }
+      } while (products.some((p) => p.id === ean13))
+
       const newProduct: Product = {
         ...product,
-        id: `product_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // ID mais único
+        id: ean13, // Usar EAN-13 como ID
         price: product.price || 0,
         featured: product.featured || false,
         order: product.order || 0,
       }
 
-      console.log("📝 [PRODUCTS] Produto preparado:", newProduct)
+      console.log("📝 [PRODUCTS] Produto preparado com EAN-13:", {
+        ...newProduct,
+        ean13Valid: validateEAN13(newProduct.id),
+        ean13: newProduct.id,
+      })
 
       // Adicionar à lista local primeiro (otimistic update)
       const newProducts = [...products, newProduct]
@@ -320,7 +386,7 @@ export function useProducts() {
       // Salvar no servidor
       await saveProducts(newProducts)
 
-      console.log("✅ [PRODUCTS] Produto adicionado com sucesso")
+      console.log("✅ [PRODUCTS] Produto adicionado com sucesso - EAN-13:", newProduct.id)
     } catch (error) {
       console.error("❌ [PRODUCTS] Erro ao adicionar produto:", error)
       // Reverter mudança local em caso de erro
@@ -429,5 +495,8 @@ export function useProducts() {
     reorderFeaturedProducts,
     toggleFeatured,
     refreshProducts: loadProducts,
+    // Exportar funções utilitárias para uso externo
+    generateEAN13,
+    validateEAN13,
   }
 }
