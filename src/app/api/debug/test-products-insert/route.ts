@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic"
 
 export async function GET() {
   try {
-    console.log("🧪 [SIMPLE-TEST] === TESTE SIMPLES DE PRODUTOS ===")
+    console.log("🔍 [ADMIN-DEBUG] === DIAGNOSTICANDO PROBLEMA DO ADMIN ===")
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -14,136 +14,99 @@ export async function GET() {
       return NextResponse.json({
         success: false,
         error: "Variáveis Supabase não configuradas",
-        debug: {
-          hasUrl: !!supabaseUrl,
-          hasKey: !!supabaseServiceKey,
-        },
       })
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // 1. Testar leitura simples
-    console.log("📖 [SIMPLE-TEST] Testando leitura...")
-    const { data: readData, error: readError } = await supabase.from("products").select("*").limit(5)
+    // 1. Testar a mesma query que o admin usa
+    console.log("📊 [ADMIN-DEBUG] Testando query do admin...")
 
-    if (readError) {
-      console.error("❌ [SIMPLE-TEST] Erro na leitura:", readError)
+    const { data: adminData, error: adminError } = await supabase
+      .from("products")
+      .select("*")
+      .order("created_at", { ascending: false })
+
+    if (adminError) {
+      console.error("❌ [ADMIN-DEBUG] Erro na query do admin:", adminError)
       return NextResponse.json({
         success: false,
-        error: "Erro ao ler produtos",
-        details: readError.message,
-        step: "read",
+        error: "Erro na query do admin",
+        details: adminError,
+        step: "admin_query",
       })
     }
 
-    console.log("✅ [SIMPLE-TEST] Leitura OK:", readData?.length, "produtos")
+    console.log("✅ [ADMIN-DEBUG] Query do admin OK:", adminData?.length, "produtos")
 
-    // 2. Testar inserção simples
-    console.log("➕ [SIMPLE-TEST] Testando inserção...")
-    const testProduct = {
-      id: `test_simple_${Date.now()}`,
-      name: "Produto Teste Simples",
-      description: "Descrição do produto teste",
-      category: "Teste",
-      price: 0,
-      image: "/test.jpg",
-      featured: false,
-      order: 0,
+    // 2. Testar transformação dos dados
+    const transformedProducts = (adminData || []).map((data: any) => ({
+      id: data.id,
+      name: data.name || "",
+      description: data.description || "",
+      price: data.price || 0,
+      image: data.image || "",
+      category: data.category || "",
+      featured: data.featured || false,
+      order: data.order || 0,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    }))
+
+    // 3. Verificar produtos em destaque
+    const featuredProducts = transformedProducts.filter((p) => p.featured)
+    const nonFeaturedProducts = transformedProducts.filter((p) => !p.featured)
+
+    // 4. Simular a API /api/products
+    console.log("🔄 [ADMIN-DEBUG] Simulando resposta da API...")
+
+    const apiResponse = {
+      products: transformedProducts,
+      success: true,
+      count: transformedProducts.length,
+      timestamp: new Date().toISOString(),
+      cached: false,
     }
 
-    const { data: insertData, error: insertError } = await supabase.from("products").insert([testProduct]).select()
-
-    if (insertError) {
-      console.error("❌ [SIMPLE-TEST] Erro na inserção:", insertError)
-      return NextResponse.json({
-        success: false,
-        error: "Erro ao inserir produto",
-        details: {
-          message: insertError.message,
-          code: insertError.code,
-          details: insertError.details,
-          hint: insertError.hint,
-        },
-        step: "insert",
-        testProduct,
-      })
+    // 5. Verificar se há problemas de cache
+    const cacheInfo = {
+      localStorage: typeof window !== "undefined" ? "available" : "server-side",
+      timestamp: Date.now(),
     }
-
-    console.log("✅ [SIMPLE-TEST] Inserção OK:", insertData)
-
-    // 3. Testar atualização
-    console.log("✏️ [SIMPLE-TEST] Testando atualização...")
-    const { data: updateData, error: updateError } = await supabase
-      .from("products")
-      .update({ name: "Produto Teste Atualizado" })
-      .eq("id", testProduct.id)
-      .select()
-
-    if (updateError) {
-      console.error("❌ [SIMPLE-TEST] Erro na atualização:", updateError)
-    } else {
-      console.log("✅ [SIMPLE-TEST] Atualização OK:", updateData)
-    }
-
-    // 4. Testar deleção
-    console.log("🗑️ [SIMPLE-TEST] Testando deleção...")
-    const { error: deleteError } = await supabase.from("products").delete().eq("id", testProduct.id)
-
-    if (deleteError) {
-      console.error("❌ [SIMPLE-TEST] Erro na deleção:", deleteError)
-    } else {
-      console.log("✅ [SIMPLE-TEST] Deleção OK")
-    }
-
-    // 5. Contar produtos finais
-    const { count: finalCount, error: countError } = await supabase
-      .from("products")
-      .select("*", { count: "exact", head: true })
 
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
-      tests: {
-        read: {
-          success: !readError,
-          count: readData?.length || 0,
-          data: readData?.slice(0, 2), // Apenas os primeiros 2 para não sobrecarregar
-          error: readError?.message,
+      debug: {
+        rawData: {
+          count: adminData?.length || 0,
+          sample: adminData?.slice(0, 2) || [],
+          error: adminError?.message,
         },
-        insert: {
-          success: !insertError,
-          testProduct,
-          result: insertData,
-          error: insertError?.message,
+        transformedData: {
+          count: transformedProducts.length,
+          sample: transformedProducts.slice(0, 2),
+          featured: featuredProducts.length,
+          nonFeatured: nonFeaturedProducts.length,
         },
-        update: {
-          success: !updateError,
-          result: updateData,
-          error: updateError?.message,
-        },
-        delete: {
-          success: !deleteError,
-          error: deleteError?.message,
-        },
-        finalCount: {
-          count: finalCount || 0,
-          error: countError?.message,
-        },
+        apiSimulation: apiResponse,
+        cache: cacheInfo,
       },
-      environment: {
-        supabaseUrl,
-        hasServiceKey: !!supabaseServiceKey,
-        serviceKeyLength: supabaseServiceKey?.length || 0,
-      },
+      recommendations: [
+        "1. Verificar se o hook useProducts está funcionando",
+        "2. Verificar se há erros no console do navegador",
+        "3. Verificar se o loading está travado",
+        "4. Limpar cache do localStorage",
+        "5. Verificar se a API /api/products está respondendo",
+      ],
     })
   } catch (error) {
-    console.error("💥 [SIMPLE-TEST] Erro geral:", error)
+    console.error("💥 [ADMIN-DEBUG] Erro geral:", error)
 
     return NextResponse.json(
       {
         success: false,
-        error: "Erro geral no teste",
+        error: "Erro no diagnóstico",
         details: error instanceof Error ? error.message : String(error),
         timestamp: new Date().toISOString(),
       },
