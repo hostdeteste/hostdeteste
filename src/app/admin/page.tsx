@@ -64,11 +64,30 @@ export default function AdminPage() {
   })
   const [lastUpdateFormatted, setLastUpdateFormatted] = useState<string>("")
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   const featuredProducts = getFeaturedProducts()
   const nonFeaturedProducts = products.filter((product) => !product.featured)
 
   const categories = ["Mercearia", "Escritorio", "Escolar", "Brinquedos", "Eletrônicos", "Outros"]
+
+  // Debug: Monitorar estado dos produtos
+  useEffect(() => {
+    console.log("🔍 [ADMIN-DEBUG] Estado atual:")
+    console.log("- Loading:", loading)
+    console.log("- Products:", products.length)
+    console.log("- Featured:", featuredProducts.length)
+    console.log("- Error:", error)
+    console.log("- Products data:", products)
+
+    setDebugInfo({
+      loading,
+      productsCount: products.length,
+      featuredCount: featuredProducts.length,
+      error,
+      timestamp: new Date().toISOString(),
+    })
+  }, [loading, products, featuredProducts, error])
 
   // Formatar a data da última atualização
   useEffect(() => {
@@ -84,6 +103,30 @@ export default function AdminPage() {
     setTimeout(() => {
       setOperationStatus({ type: null, message: "" })
     }, 3000)
+  }
+
+  // Função para limpar cache e recarregar
+  const handleForceRefresh = async () => {
+    try {
+      console.log("🔄 [ADMIN] Limpando cache e recarregando...")
+
+      // Limpar cache do localStorage
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("products_cache_v2")
+        localStorage.removeItem("products_last_check")
+        localStorage.removeItem("weekly_pdfs_cache")
+      }
+
+      // Chamar API para limpar cache do servidor
+      await fetch("/api/debug/clear-cache", { method: "POST" })
+
+      // Recarregar produtos
+      await refreshProducts()
+
+      showStatus("success", "Cache limpo e dados recarregados!")
+    } catch (error) {
+      showStatus("error", "Erro ao limpar cache")
+    }
   }
 
   // Se ainda está verificando autenticação
@@ -111,6 +154,11 @@ export default function AdminPage() {
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-600 mx-auto mb-4"></div>
           <p className="text-xl text-gray-600">Carregando dados da nuvem...</p>
           <p className="text-sm text-gray-500 mt-2">Todos os produtos são carregados da base de dados</p>
+          {debugInfo && (
+            <div className="mt-4 text-xs text-gray-400">
+              <p>Debug: {JSON.stringify(debugInfo)}</p>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -284,6 +332,14 @@ export default function AdminPage() {
             </div>
             <div className="flex items-center space-x-4">
               <button
+                onClick={handleForceRefresh}
+                className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                disabled={loading}
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                <span>Limpar Cache</span>
+              </button>
+              <button
                 onClick={() => refreshProducts()}
                 className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 disabled={loading}
@@ -305,70 +361,37 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Debug Section - apenas em desenvolvimento */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-8">
-            <h3 className="text-lg font-semibold text-yellow-800 mb-4">🔧 Debug Tools</h3>
-            <div className="flex flex-wrap gap-4">
+        {/* Debug Info - apenas em desenvolvimento */}
+        {process.env.NODE_ENV === "development" && debugInfo && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+            <h3 className="text-sm font-semibold text-yellow-800 mb-2">🔧 Debug Info</h3>
+            <pre className="text-xs text-yellow-700 overflow-x-auto">{JSON.stringify(debugInfo, null, 2)}</pre>
+            <div className="mt-2 flex space-x-2">
               <button
                 onClick={async () => {
-                  try {
-                    const response = await fetch("/api/debug/supabase-schema")
-                    const data = await response.json()
-                    console.log("🔍 [DEBUG] Schema Supabase:", data)
-                    alert("Verifique o console para detalhes do schema")
-                  } catch (error) {
-                    console.error("❌ [DEBUG] Erro:", error)
-                    alert("Erro ao verificar schema")
-                  }
+                  const response = await fetch("/api/debug/admin-products-debug")
+                  const data = await response.json()
+                  console.log("🔍 Debug completo:", data)
+                  alert("Verifique o console para debug completo")
                 }}
-                className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
+                className="bg-yellow-600 text-white px-3 py-1 rounded text-xs hover:bg-yellow-700"
               >
-                Verificar Schema Supabase
+                Debug Completo
               </button>
-
-              <button
-                onClick={async () => {
-                  try {
-                    console.log("🧪 [DEBUG] Testando adição de produto...")
-                    const testProduct: Omit<Product, "id"> = {
-                      name: `Produto Teste ${Date.now()}`,
-                      description: "Produto criado para teste de debug",
-                      category: "Teste",
-                      price: 0,
-                      image: "/placeholder.svg",
-                      featured: false,
-                      order: 0,
-                    }
-
-                    await addProduct(testProduct)
-                    showStatus("success", "Produto de teste adicionado com sucesso!")
-                  } catch (error) {
-                    console.error("❌ [DEBUG] Erro no teste:", error)
-                    showStatus(
-                      "error",
-                      `Erro no teste: ${error instanceof Error ? error.message : "Erro desconhecido"}`,
-                    )
-                  }
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Testar Adição de Produto
-              </button>
-
               <button
                 onClick={() => {
-                  console.log("📊 [DEBUG] Estado atual:")
-                  console.log("- Produtos:", products.length)
-                  console.log("- Loading:", loading)
-                  console.log("- Saving:", saving)
-                  console.log("- Error:", error)
-                  console.log("- FormData:", formData)
-                  alert("Verifique o console para detalhes do estado")
+                  console.log("📊 Estado useProducts:", {
+                    products,
+                    loading,
+                    saving,
+                    error,
+                    featuredProducts,
+                    nonFeaturedProducts,
+                  })
                 }}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700"
               >
-                Ver Estado Atual
+                Log Estado
               </button>
             </div>
           </div>
