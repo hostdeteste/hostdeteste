@@ -81,44 +81,100 @@ export function useProducts() {
     }
   }
 
-  // Cache functions otimizadas
+  // Versão do cache - incrementar quando houver mudanças estruturais
+  const CACHE_VERSION = "v3"
+  const CACHE_KEY = `products_cache_${CACHE_VERSION}`
+  const CACHE_CHECK_KEY = `products_last_check_${CACHE_VERSION}`
+
+  // Cache functions otimizadas com auto-invalidação
   const getCachedProducts = (): Product[] | null => {
     try {
-      const cached = localStorage.getItem("products_cache_v2")
+      // Limpar caches de versões antigas automaticamente
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("products_cache_") && key !== CACHE_KEY) {
+          localStorage.removeItem(key)
+          console.log(`🧹 Cache antigo removido: ${key}`)
+        }
+        if (key.startsWith("products_last_check_") && key !== CACHE_CHECK_KEY) {
+          localStorage.removeItem(key)
+        }
+      })
+
+      const cached = localStorage.getItem(CACHE_KEY)
       if (!cached) return null
 
       const data = JSON.parse(cached)
       const age = Date.now() - data.timestamp
 
-      // Cache válido por 1 hora
-      if (age < 60 * 60 * 1000) {
-        return data.products
+      // Cache válido por apenas 30 minutos para clientes
+      if (age < 30 * 60 * 1000) {
+        // Verificar se os dados estão íntegros
+        if (Array.isArray(data.products) && data.products.length >= 0) {
+          return data.products
+        } else {
+          console.warn("⚠️ Cache corrompido detectado, removendo...")
+          localStorage.removeItem(CACHE_KEY)
+          return null
+        }
       }
 
+      // Cache expirado
+      localStorage.removeItem(CACHE_KEY)
       return null
-    } catch {
+    } catch (error) {
+      console.warn("⚠️ Erro no cache, limpando...", error)
+      // Limpar todo o cache de produtos em caso de erro
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("products_cache_")) {
+          localStorage.removeItem(key)
+        }
+      })
       return null
     }
   }
 
   const saveProductsToCache = (products: Product[]) => {
     try {
+      // Validar dados antes de salvar
+      if (!Array.isArray(products)) {
+        console.error("❌ Tentativa de salvar dados inválidos no cache")
+        return
+      }
+
       const cacheData = {
         products,
         timestamp: Date.now(),
+        version: CACHE_VERSION,
       }
-      localStorage.setItem("products_cache_v2", JSON.stringify(cacheData))
-    } catch {
-      // Ignorar erros de cache
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData))
+      console.log(`✅ Cache salvo: ${products.length} produtos (${CACHE_VERSION})`)
+    } catch (error) {
+      console.warn("⚠️ Erro ao salvar cache:", error)
+      // Se não conseguir salvar, limpar cache antigo
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith("products_cache_")) {
+            localStorage.removeItem(key)
+          }
+        })
+      } catch {}
     }
   }
 
   const getFallbackCache = (): Product[] | null => {
     try {
-      const cached = localStorage.getItem("products_cache_v2")
-      if (cached) {
-        const data = JSON.parse(cached)
-        return data.products || []
+      // Tentar qualquer cache de produtos disponível como último recurso
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith("products_cache_")) {
+          const cached = localStorage.getItem(key)
+          if (cached) {
+            const data = JSON.parse(cached)
+            if (Array.isArray(data.products)) {
+              console.log(`🆘 Usando cache de emergência: ${key}`)
+              return data.products
+            }
+          }
+        }
       }
     } catch {
       // Ignorar erros
@@ -126,14 +182,14 @@ export function useProducts() {
     return null
   }
 
-  // Verificar atualizações apenas quando necessário
+  // Verificar atualizações com mais frequência para clientes
   const checkForUpdates = async () => {
     try {
-      const lastCheck = localStorage.getItem("products_last_check")
+      const lastCheck = localStorage.getItem(CACHE_CHECK_KEY)
       const now = Date.now()
 
-      // Só verificar se passou mais de 10 minutos
-      if (lastCheck && now - Number.parseInt(lastCheck) < 10 * 60 * 1000) {
+      // Verificar a cada 5 minutos para clientes (mais frequente)
+      if (lastCheck && now - Number.parseInt(lastCheck) < 5 * 60 * 1000) {
         return
       }
 
@@ -145,44 +201,76 @@ export function useProducts() {
       if (response.ok) {
         const data = await response.json()
         if (data.lastModified) {
-          const currentCache = localStorage.getItem("products_cache_v2")
+          const currentCache = localStorage.getItem(CACHE_KEY)
           if (currentCache) {
             const cacheData = JSON.parse(currentCache)
             if (data.lastModified > cacheData.timestamp) {
               // Há atualizações, recarregar
-              localStorage.removeItem("products_cache_v2")
+              console.log("🔄 Atualizações detectadas, limpando cache...")
+              localStorage.removeItem(CACHE_KEY)
               loadProducts(true)
             }
           }
         }
       }
 
-      localStorage.setItem("products_last_check", now.toString())
+      localStorage.setItem(CACHE_CHECK_KEY, now.toString())
     } catch (error) {
-      // Ignorar erros de background check
+      // Em caso de erro, forçar limpeza do cache
+      console.warn("⚠️ Erro na verificação, limpando cache preventivamente")
+      localStorage.removeItem(CACHE_KEY)
     }
   }
 
   // Salvar produtos
   const saveProducts = async (newProducts: Product[]) => {
     try {
+      console.log("💾 [PRODUCTS] === INICIANDO SALVAMENTO ===")
+      console.log("📊 [PRODUCTS] Produtos a salvar:", newProducts.length)
+      console.log(
+        "📋 [PRODUCTS] Dados dos produtos:",
+        newProducts.map((p) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          hasImage: !!p.image,
+          featured: p.featured,
+        })),
+      )
+
       setSaving(true)
       setError(null)
 
       // Atualização otimista
       setProducts(newProducts)
 
+      const requestBody = { products: newProducts }
+      console.log("📤 [PRODUCTS] Enviando para API:", {
+        url: "/api/products",
+        method: "POST",
+        bodySize: JSON.stringify(requestBody).length,
+        productsCount: newProducts.length,
+      })
+
       const response = await fetch("/api/products", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ products: newProducts }),
+        body: JSON.stringify(requestBody),
+      })
+
+      console.log("📥 [PRODUCTS] Resposta da API:", {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
       })
 
       const data = await response.json()
+      console.log("📋 [PRODUCTS] Dados da resposta:", data)
 
       if (!data.success) {
+        console.error("❌ [PRODUCTS] Erro na resposta:", data)
         await loadProducts()
         throw new Error(data.error || "Erro ao salvar")
       }
@@ -190,8 +278,14 @@ export function useProducts() {
       // Atualizar cache
       saveProductsToCache(newProducts)
       setLastUpdate(Date.now())
+
+      console.log("✅ [PRODUCTS] Salvamento concluído com sucesso")
     } catch (error) {
+      console.error("💥 [PRODUCTS] Erro no salvamento:", error)
       setError(error instanceof Error ? error.message : "Erro ao salvar produtos")
+      // Recarregar produtos em caso de erro
+      await loadProducts()
+      throw error
     } finally {
       setSaving(false)
     }

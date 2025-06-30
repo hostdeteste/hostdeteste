@@ -4,12 +4,44 @@ import { Star, ChevronDown, FileText } from "lucide-react"
 import { useWeeklyPdfs } from "@/app/hooks/useWeeklyPdfs"
 import { useEffect, useState } from "react"
 
+// Função para detectar e corrigir problemas de cache automaticamente
+const detectAndFixCacheIssues = () => {
+  try {
+    // Verificar se há caches antigos que podem causar problemas
+    const oldCacheKeys = Object.keys(localStorage).filter(
+      (key) =>
+        (key.startsWith("products_cache_") && !key.includes("_v3")) ||
+        (key.startsWith("weekly_pdfs_cache_") && !key.includes("_v2")),
+    )
+
+    if (oldCacheKeys.length > 0) {
+      console.log("🧹 Detectados caches antigos, limpando automaticamente...")
+      oldCacheKeys.forEach((key) => {
+        localStorage.removeItem(key)
+        console.log(`✅ Cache antigo removido: ${key}`)
+      })
+
+      // Forçar reload da página para garantir dados frescos
+      if (typeof window !== "undefined") {
+        setTimeout(() => {
+          window.location.reload()
+        }, 1000)
+      }
+    }
+  } catch (error) {
+    console.warn("⚠️ Erro na detecção de cache:", error)
+  }
+}
+
 export default function Hero() {
   const { latestPdf, loading } = useWeeklyPdfs()
   const [isMobile, setIsMobile] = useState(false)
 
   // Detectar mobile apenas uma vez
   useEffect(() => {
+    // Detectar problemas de cache na primeira visita
+    detectAndFixCacheIssues()
+
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
     checkMobile()
 

@@ -109,48 +109,93 @@ export function useWeeklyPdfs() {
     }
   }
 
-  // Cache functions
+  // Versão do cache para PDFs
+  const PDF_CACHE_VERSION = "v2"
+  const PDF_CACHE_KEY = `weekly_pdfs_cache_${PDF_CACHE_VERSION}`
+
+  // Cache functions com auto-invalidação
   const getCachedPdfs = () => {
     try {
-      const cached = localStorage.getItem("weekly_pdfs_cache")
+      // Limpar caches antigos automaticamente
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("weekly_pdfs_cache_") && key !== PDF_CACHE_KEY) {
+          localStorage.removeItem(key)
+          console.log(`🧹 Cache PDF antigo removido: ${key}`)
+        }
+      })
+
+      const cached = localStorage.getItem(PDF_CACHE_KEY)
       if (!cached) return null
 
       const data = JSON.parse(cached)
       const age = Date.now() - data.timestamp
 
-      // Cache válido por 5 minutos
-      if (age < 5 * 60 * 1000) {
-        return { pdfs: data.pdfs || [], latest: data.latest || null }
+      // Cache válido por 10 minutos para PDFs
+      if (age < 10 * 60 * 1000) {
+        if (Array.isArray(data.pdfs)) {
+          return { pdfs: data.pdfs || [], latest: data.latest || null }
+        } else {
+          console.warn("⚠️ Cache PDF corrompido, removendo...")
+          localStorage.removeItem(PDF_CACHE_KEY)
+          return null
+        }
       }
+
+      localStorage.removeItem(PDF_CACHE_KEY)
       return null
-    } catch {
+    } catch (error) {
+      console.warn("⚠️ Erro no cache PDF, limpando...", error)
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("weekly_pdfs_cache_")) {
+          localStorage.removeItem(key)
+        }
+      })
       return null
     }
   }
 
   const savePdfsToCache = (pdfs: WeeklyPdf[], latest: WeeklyPdf | null) => {
     try {
+      if (!Array.isArray(pdfs)) {
+        console.error("❌ Tentativa de salvar dados PDF inválidos")
+        return
+      }
+
       const cacheData = {
         pdfs: pdfs || [],
         latest: latest || null,
         timestamp: Date.now(),
+        version: PDF_CACHE_VERSION,
       }
-      localStorage.setItem("weekly_pdfs_cache", JSON.stringify(cacheData))
+      localStorage.setItem(PDF_CACHE_KEY, JSON.stringify(cacheData))
+      console.log(`✅ Cache PDF salvo: ${pdfs.length} PDFs (${PDF_CACHE_VERSION})`)
     } catch (error) {
-      console.warn("⚠️ [PDFS] Erro ao salvar cache:", error)
+      console.warn("⚠️ Erro ao salvar cache PDF:", error)
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith("weekly_pdfs_cache_")) {
+            localStorage.removeItem(key)
+          }
+        })
+      } catch {}
     }
   }
 
   const getFallbackCache = () => {
     try {
-      const cached = localStorage.getItem("weekly_pdfs_cache")
-      if (cached) {
-        const data = JSON.parse(cached)
-        return { pdfs: data.pdfs || [], latest: data.latest || null }
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith("weekly_pdfs_cache_")) {
+          const cached = localStorage.getItem(key)
+          if (cached) {
+            const data = JSON.parse(cached)
+            if (Array.isArray(data.pdfs)) {
+              console.log(`🆘 Usando cache PDF de emergência: ${key}`)
+              return { pdfs: data.pdfs || [], latest: data.latest || null }
+            }
+          }
+        }
       }
-    } catch {
-      // Ignore
-    }
+    } catch {}
     return null
   }
 
@@ -181,7 +226,7 @@ export function useWeeklyPdfs() {
       }
 
       // Limpar cache e recarregar
-      localStorage.removeItem("weekly_pdfs_cache")
+      localStorage.removeItem(PDF_CACHE_KEY)
       await loadPdfs()
     } catch (error) {
       console.error("❌ [PDFS] Erro ao adicionar PDF:", error)
@@ -215,7 +260,7 @@ export function useWeeklyPdfs() {
       }
 
       // Limpar cache e recarregar
-      localStorage.removeItem("weekly_pdfs_cache")
+      localStorage.removeItem(PDF_CACHE_KEY)
       await loadPdfs()
     } catch (error) {
       console.error("❌ [PDFS] Erro ao deletar PDF:", error)
@@ -241,7 +286,7 @@ export function useWeeklyPdfs() {
     addPdf,
     deletePdf,
     refreshPdfs: () => {
-      localStorage.removeItem("weekly_pdfs_cache")
+      localStorage.removeItem(PDF_CACHE_KEY)
       return loadPdfs()
     },
   }
