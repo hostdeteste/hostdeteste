@@ -23,19 +23,10 @@ export default function ProductsPage() {
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 640)
-      // Em dispositivos muito pequenos, forçar visualização em lista
-      if (window.innerWidth < 480) {
-        // Placeholder for view mode change logic if needed
-      }
     }
 
-    // Verificar no carregamento inicial
     checkMobile()
-
-    // Adicionar listener para redimensionamento
     window.addEventListener("resize", checkMobile)
-
-    // Cleanup
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
@@ -62,10 +53,6 @@ export default function ProductsPage() {
       switch (sortBy) {
         case "name":
           return a.name.localeCompare(b.name)
-        case "price-low":
-          return a.price - b.price
-        case "price-high":
-          return b.price - a.price
         case "category":
           return a.category.localeCompare(b.category)
         case "featured":
@@ -134,11 +121,11 @@ export default function ProductsPage() {
                     className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border-2 border-yellow-200"
                   >
                     <div className="relative">
-                      <div className="h-64 bg-gray-100 flex items-center justify-center p-4">
+                      <div className="h-64 bg-gray-100">
                         <img
                           src={product.image || "/placeholder.svg?height=256&width=256"}
                           alt={product.name}
-                          className="max-h-full max-w-full object-contain"
+                          className="w-full h-full object-contain"
                         />
                       </div>
                       <div className="absolute top-2 left-2">
@@ -258,11 +245,11 @@ export default function ProductsPage() {
                     className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
                   >
                     <div className="relative">
-                      <div className="h-48 bg-gray-100 flex items-center justify-center p-4">
+                      <div className="h-48 bg-gray-100">
                         <img
                           src={product.image || "/placeholder.svg?height=192&width=192"}
                           alt={product.name}
-                          className="max-h-full max-w-full object-contain"
+                          className="w-full h-full object-contain"
                         />
                       </div>
                       <div className="absolute top-2 right-2">

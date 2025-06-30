@@ -79,16 +79,12 @@ export default function ProductPage() {
             <div className="grid md:grid-cols-2 gap-8 p-6">
               {/* Product Images */}
               <div className="space-y-4">
-                {/* Main Image - CORRIGIDO para manter proporção */}
-                <div
-                  className="bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center p-6"
-                  style={{ minHeight: "400px", maxHeight: "500px" }}
-                >
+                {/* Main Image - AJUSTADO para preencher o div */}
+                <div className="bg-gray-100 rounded-lg overflow-hidden h-96 w-full">
                   <img
                     src={selectedImage || product?.image || "/placeholder.svg?height=400&width=400"}
                     alt={product?.name}
-                    className="max-h-full max-w-full object-contain hover:scale-105 transition-transform duration-300"
-                    style={{ maxHeight: "450px", maxWidth: "100%" }}
+                    className="w-full h-full object-contain hover:scale-105 transition-transform duration-300"
                   />
                 </div>
 
@@ -98,14 +94,14 @@ export default function ProductPage() {
                     <button
                       key={index}
                       onClick={() => setSelectedImage(img)}
-                      className={`flex-shrink-0 w-20 h-20 rounded-md overflow-hidden border-2 flex items-center justify-center p-1 ${
+                      className={`flex-shrink-0 w-20 h-20 rounded-md overflow-hidden border-2 ${
                         selectedImage === img ? "border-red-500" : "border-gray-200"
                       }`}
                     >
                       <img
                         src={img || "/placeholder.svg"}
                         alt={`${product?.name} - Imagem ${index + 1}`}
-                        className="max-w-full max-h-full object-contain"
+                        className="w-full h-full object-contain"
                       />
                     </button>
                   ))}
@@ -169,11 +165,11 @@ export default function ProductPage() {
                     key={relatedProduct.id}
                     className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow border-2 border-red-500"
                   >
-                    <div className="h-48 overflow-hidden bg-gray-50 flex items-center justify-center p-4">
+                    <div className="h-48 overflow-hidden bg-gray-50">
                       <img
                         src={relatedProduct.image || "/placeholder.svg?height=300&width=300"}
                         alt={relatedProduct.name}
-                        className="max-h-full max-w-full object-contain hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-contain hover:scale-105 transition-transform duration-300"
                       />
                     </div>
                     <div className="p-4">
