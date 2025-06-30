@@ -96,7 +96,6 @@ export default function ProductsPage() {
             <p className="text-sm sm:text-base text-gray-600">Explore todo o nosso catálogo de produtos</p>
           </div>
 
-          {/* Resto do conteúdo da página... */}
           {/* Filters and Search - Reorganizado para mobile */}
           <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6 sm:mb-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-end">
@@ -167,11 +166,11 @@ export default function ProductsPage() {
                   key={product.id}
                   className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden group border-2 border-red-500"
                 >
-                  <div className="relative h-32 sm:h-40 md:h-48 overflow-hidden">
+                  <div className="relative h-32 sm:h-40 md:h-48 overflow-hidden bg-gray-50 flex items-center justify-center">
                     <img
                       src={product.image || "/placeholder.svg?height=300&width=300"}
                       alt={product.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
                     />
                     <div className="absolute top-2 left-2">
                       <span className="px-2 py-1 rounded-full text-[0.6rem] sm:text-xs font-bold bg-green-600 text-white">
@@ -211,11 +210,11 @@ export default function ProductsPage() {
                   className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden group border-2 border-red-500"
                 >
                   <div className="flex">
-                    <div className="w-24 sm:w-32 h-24 sm:h-32 flex-shrink-0">
+                    <div className="w-24 sm:w-32 h-24 sm:h-32 flex-shrink-0 bg-gray-50 flex items-center justify-center">
                       <img
                         src={product.image || "/placeholder.svg?height=300&width=300"}
                         alt={product.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
                       />
                     </div>
                     <div className="flex-1 p-3 sm:p-4">

@@ -11,6 +11,8 @@ export interface Product {
   category: string
   featured: boolean
   order: number
+  created_at?: string // ✅ Adicionado para corrigir o erro TypeScript
+  updated_at?: string // ✅ Adicionado para corrigir o erro TypeScript
 }
 
 // Função para gerar código EAN-13 aleatório válido
@@ -371,6 +373,8 @@ export function useProducts() {
         price: product.price || 0,
         featured: product.featured || false,
         order: product.order || 0,
+        created_at: new Date().toISOString(), // ✅ Adicionado
+        updated_at: new Date().toISOString(), // ✅ Adicionado
       }
 
       console.log("📝 [PRODUCTS] Produto preparado com EAN-13 puro:", {
@@ -397,7 +401,11 @@ export function useProducts() {
   }
 
   const updateProduct = async (id: string, updates: Partial<Product>) => {
-    const newProducts = products.map((product) => (product.id === id ? { ...product, ...updates } : product))
+    const newProducts = products.map((product) =>
+      product.id === id
+        ? { ...product, ...updates, updated_at: new Date().toISOString() } // ✅ Atualizar timestamp
+        : product,
+    )
     await saveProducts(newProducts)
   }
 
@@ -459,6 +467,7 @@ export function useProducts() {
         ...product,
         featured: newOrder !== -1,
         order: newOrder !== -1 ? newOrder + 1 : product.order,
+        updated_at: new Date().toISOString(), // ✅ Atualizar timestamp
       }
     })
     await saveProducts(newProducts)

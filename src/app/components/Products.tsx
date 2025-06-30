@@ -100,12 +100,12 @@ export default function Products() {
               key={product.id}
               className="bg-white rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group border-2 border-red-500 transform hover:-translate-y-1"
             >
-              {/* Product Image */}
-              <div className="relative overflow-hidden h-28 sm:h-36">
+              {/* Product Image - Ajustado para manter proporção pela altura */}
+              <div className="relative overflow-hidden h-28 sm:h-36 bg-gray-50 flex items-center justify-center">
                 <img
                   src={product.image || "/placeholder.svg?height=300&width=300"}
                   alt={product.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
                 />
                 <div className="absolute top-2 right-2">
                   <button

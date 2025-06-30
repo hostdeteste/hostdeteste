@@ -84,7 +84,7 @@ export default function ProductPage() {
                   <img
                     src={selectedImage || product?.image}
                     alt={product?.name}
-                    className="w-full h-full object-contain hover:scale-105 transition-transform duration-300"
+                    className="max-h-full max-w-full object-contain hover:scale-105 transition-transform duration-300"
                   />
                 </div>
 
@@ -123,11 +123,13 @@ export default function ProductPage() {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800 mb-2">Descrição</h3>
                   <div className="text-gray-600 leading-relaxed">
-                    {product?.description.split('\n').map((linha, index) => (
-                  <p key={index} className="mb-2 last:mb-0">{linha}</p>
-                 ))}
+                    {product?.description.split("\n").map((linha, index) => (
+                      <p key={index} className="mb-2 last:mb-0">
+                        {linha}
+                      </p>
+                    ))}
+                  </div>
                 </div>
-</div>
 
                 <div className="pt-4 border-t border-gray-200">
                   <h3 className="text-lg font-semibold text-gray-800 mb-2">Características</h3>
@@ -163,11 +165,11 @@ export default function ProductPage() {
                     key={relatedProduct.id}
                     className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow border-2 border-red-500"
                   >
-                    <div className="h-48 overflow-hidden">
+                    <div className="h-48 overflow-hidden bg-gray-50 flex items-center justify-center">
                       <img
                         src={relatedProduct.image || "/placeholder.svg?height=300&width=300"}
                         alt={relatedProduct.name}
-                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                        className="max-h-full max-w-full object-contain hover:scale-105 transition-transform duration-300"
                       />
                     </div>
                     <div className="p-4">
