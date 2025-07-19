@@ -2,8 +2,7 @@
 
 import type React from "react"
 import { useState, useRef } from "react"
-import { Upload, FileText, Loader2, Calendar, Zap, AlertTriangle, CheckCircle } from "lucide-react"
-import { ClientPDFCompressor } from "@/app/lib/client-pdf-compressor"
+import { Upload, FileText, Loader2, Calendar, AlertTriangle } from "lucide-react"
 
 interface PdfUploadProps {
   onUpload: (file: File, name: string) => Promise<void>
@@ -16,13 +15,6 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
   const [pdfName, setPdfName] = useState("")
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
-  const [isCompressing, setIsCompressing] = useState(false)
-  const [compressionInfo, setCompressionInfo] = useState<{
-    originalSize: number
-    compressedSize: number
-    compressionRatio: number
-    wasCompressed: boolean
-  } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Gerar nome automático baseado na data
@@ -52,51 +44,14 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
     }
 
     setUploadError(null)
-    setCompressionInfo(null)
 
     // Se não há nome, gerar automaticamente
     if (!pdfName) {
       setPdfName(generateWeeklyName())
     }
 
-    // Verificar se precisa de compressão
-    const needsCompression = ClientPDFCompressor.needsCompression(file.size)
-
-    if (needsCompression) {
-      console.log(`📄 PDF de ${formatFileSize(file.size)} precisa de compressão`)
-
-      try {
-        setIsCompressing(true)
-        setUploadError(null)
-
-        const result = await ClientPDFCompressor.compressPDF(file)
-
-        setSelectedFile(result.compressedFile)
-        setCompressionInfo({
-          originalSize: result.originalSize,
-          compressedSize: result.compressedSize,
-          compressionRatio: result.compressionRatio,
-          wasCompressed: result.wasCompressed,
-        })
-
-        console.log(
-          `✅ Compressão concluída: ${formatFileSize(result.originalSize)} → ${formatFileSize(result.compressedSize)}`,
-        )
-      } catch (compressionError) {
-        console.error("❌ Erro na compressão:", compressionError)
-        setUploadError(
-          compressionError instanceof Error
-            ? compressionError.message
-            : "Erro na compressão do PDF. Tente usar uma ferramenta externa.",
-        )
-        setSelectedFile(null)
-      } finally {
-        setIsCompressing(false)
-      }
-    } else {
-      console.log(`✅ PDF de ${formatFileSize(file.size)} não precisa de compressão`)
-      setSelectedFile(file)
-    }
+    console.log(`✅ PDF selecionado: ${file.name} (${formatFileSize(file.size)})`)
+    setSelectedFile(file)
   }
 
   const handleDrag = (e: React.DragEvent) => {
@@ -138,7 +93,6 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
       // Limpar formulário após sucesso
       setSelectedFile(null)
       setPdfName("")
-      setCompressionInfo(null)
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
@@ -151,7 +105,6 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
     setSelectedFile(null)
     setPdfName("")
     setUploadError(null)
-    setCompressionInfo(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -169,13 +122,13 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
             onChange={(e) => setPdfName(e.target.value)}
             placeholder="Ex: Folheto de 15/1 a 22/1"
             className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            disabled={isUploading || isCompressing}
+            disabled={isUploading}
           />
           <button
             type="button"
             onClick={() => setPdfName(generateWeeklyName())}
             className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
-            disabled={isUploading || isCompressing}
+            disabled={isUploading}
           >
             <Calendar className="h-4 w-4" />
             <span>Auto</span>
@@ -192,7 +145,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
           onChange={handleFileInput}
           className="hidden"
           id="pdf-upload"
-          disabled={isUploading || isCompressing}
+          disabled={isUploading}
         />
         <div
           onDragEnter={handleDrag}
@@ -200,7 +153,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
           onDragOver={handleDrag}
           onDrop={handleDrop}
           className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-            isUploading || isCompressing
+            isUploading
               ? "border-blue-400 bg-blue-50"
               : dragActive
                 ? "border-green-500 bg-green-50"
@@ -208,18 +161,10 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                   ? "border-green-400 bg-green-50"
                   : "border-gray-400 bg-gray-50 hover:border-green-500 hover:bg-green-50 cursor-pointer"
           }`}
-          onClick={() => !isUploading && !isCompressing && fileInputRef.current?.click()}
+          onClick={() => !isUploading && fileInputRef.current?.click()}
         >
           <div className="space-y-4">
-            {isCompressing ? (
-              <div className="space-y-3">
-                <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Zap className="h-8 w-8 text-blue-600 animate-pulse" />
-                </div>
-                <p className="text-lg font-medium text-gray-700">Comprimindo PDF...</p>
-                <p className="text-sm text-gray-500">Isso pode levar alguns segundos</p>
-              </div>
-            ) : isUploading ? (
+            {isUploading ? (
               <div className="space-y-3">
                 <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
                   <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
@@ -234,36 +179,6 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                 <div>
                   <p className="text-lg font-medium text-gray-700">{selectedFile.name}</p>
                   <p className="text-sm text-gray-500">{formatFileSize(selectedFile.size)}</p>
-
-                  {/* Informações de compressão */}
-                  {compressionInfo && (
-                    <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm font-medium text-green-800">
-                          {compressionInfo.wasCompressed ? "PDF Comprimido com Sucesso!" : "PDF Otimizado"}
-                        </span>
-                      </div>
-                      {compressionInfo.wasCompressed && (
-                        <div className="text-xs text-green-700 space-y-1">
-                          <div className="flex justify-between">
-                            <span>Tamanho original:</span>
-                            <span className="font-medium">{formatFileSize(compressionInfo.originalSize)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Tamanho final:</span>
-                            <span className="font-medium">{formatFileSize(compressionInfo.compressedSize)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Economia:</span>
-                            <span className="font-medium text-green-600">
-                              {((1 - compressionInfo.compressedSize / compressionInfo.originalSize) * 100).toFixed(1)}%
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
                 <button
                   type="button"
@@ -283,11 +198,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                 </div>
                 <div>
                   <p className="text-lg font-medium text-gray-700">Clique ou arraste um arquivo PDF</p>
-                  <p className="text-sm text-gray-500 mt-1">PDF até 20MB (compressão automática se necessário)</p>
-                  <div className="mt-2 flex items-center justify-center space-x-2 text-xs text-blue-600">
-                    <Zap className="h-3 w-3" />
-                    <span>Compressão automática para PDFs grandes</span>
-                  </div>
+                  <p className="text-sm text-gray-500 mt-1">PDF até 20MB</p>
                 </div>
               </>
             )}
@@ -312,7 +223,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
       {selectedFile && pdfName && (
         <button
           onClick={handleUpload}
-          disabled={isUploading || isCompressing}
+          disabled={isUploading}
           className="w-full bg-green-600 text-white py-4 px-6 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium text-lg flex items-center justify-center space-x-2"
         >
           {isUploading ? (
@@ -329,17 +240,17 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
         </button>
       )}
 
-      {/* Info sobre compressão */}
+      {/* Info sobre upload */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-start space-x-3">
-          <Zap className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+          <FileText className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-blue-800">
-            <p className="font-medium mb-1">Compressão Automática</p>
+            <p className="font-medium mb-1">Upload Direto</p>
             <ul className="space-y-1 text-xs">
-              <li>• PDFs maiores que 2MB são automaticamente comprimidos</li>
-              <li>• Limite máximo: 20MB (antes da compressão)</li>
-              <li>• Compressão inteligente preserva a qualidade</li>
-              <li>• Processo realizado no seu navegador (seguro)</li>
+              <li>• O PDF será enviado exatamente como está</li>
+              <li>• Limite máximo: 20MB</li>
+              <li>• Formatos aceitos: PDF apenas</li>
+              <li>• Upload seguro e direto para o servidor</li>
             </ul>
           </div>
         </div>

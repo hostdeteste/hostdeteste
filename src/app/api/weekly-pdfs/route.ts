@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
 
-// Tipos - removendo file_size completamente
+// Tipos - sem file_size
 interface WeeklyPdf {
   id: string
   name: string
@@ -29,7 +29,6 @@ function transformSupabasePdf(data: any): WeeklyPdf {
     upload_date: data.created_at || new Date().toISOString(),
     week: data.week || 1,
     year: data.year || new Date().getFullYear(),
-    // REMOVIDO: file_size completamente
   }
 }
 
@@ -108,10 +107,10 @@ async function loadWeeklyPdfsFromSupabase(): Promise<WeeklyPdf[]> {
   }
 }
 
-// Função para adicionar PDF - SEM file_size
+// Função para adicionar PDF - SEM compressão
 async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyPdf> {
   try {
-    console.log(`📤 [WEEKLY-PDFS-STORAGE] === INICIANDO STORAGE ===`)
+    console.log(`📤 [WEEKLY-PDFS-STORAGE] === INICIANDO UPLOAD DIRETO ===`)
     console.log(`📤 [WEEKLY-PDFS-STORAGE] Nome: ${name}`)
     console.log(`📤 [WEEKLY-PDFS-STORAGE] Tamanho: ${(file.size / 1024 / 1024).toFixed(2)}MB`)
 
@@ -124,15 +123,15 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
     console.log(`📁 [WEEKLY-PDFS-STORAGE] Arquivo: ${fileName}`)
     console.log(`📅 [WEEKLY-PDFS-STORAGE] Semana: ${week}/${year}`)
 
-    // Upload para R2
-    console.log(`🔄 [WEEKLY-PDFS-STORAGE] === UPLOAD PARA R2 ===`)
+    // Upload direto para R2 - SEM COMPRESSÃO
+    console.log(`🔄 [WEEKLY-PDFS-STORAGE] === UPLOAD DIRETO PARA R2 ===`)
 
     try {
-      // Preparar arquivo
-      console.log(`📄 [WEEKLY-PDFS-STORAGE] Convertendo arquivo para buffer...`)
+      // Preparar arquivo original
+      console.log(`📄 [WEEKLY-PDFS-STORAGE] Convertendo arquivo original para buffer...`)
       const arrayBuffer = await file.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
-      console.log(`✅ [WEEKLY-PDFS-STORAGE] Buffer criado: ${buffer.length} bytes`)
+      console.log(`✅ [WEEKLY-PDFS-STORAGE] Buffer criado: ${buffer.length} bytes (arquivo original)`)
 
       // Configurar R2 Client
       console.log(`🔧 [WEEKLY-PDFS-STORAGE] Configurando R2 Client...`)
@@ -147,8 +146,8 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
         },
       })
 
-      // Fazer upload
-      console.log(`📤 [WEEKLY-PDFS-STORAGE] Enviando para R2...`)
+      // Fazer upload do arquivo original
+      console.log(`📤 [WEEKLY-PDFS-STORAGE] Enviando arquivo original para R2...`)
       const BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME || "coutyfil-assets"
 
       await r2Client.send(
@@ -198,7 +197,7 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
       pdfsCacheTime = 0
 
       const newPdf = transformSupabasePdf(data)
-      console.log(`🎉 [WEEKLY-PDFS-STORAGE] PDF processado com sucesso: ${newPdf.name}`)
+      console.log(`🎉 [WEEKLY-PDFS-STORAGE] PDF processado com sucesso (upload direto): ${newPdf.name}`)
 
       return newPdf
     } catch (storageError) {
@@ -280,10 +279,10 @@ export async function GET() {
   }
 }
 
-// POST - Adicionar novo PDF
+// POST - Adicionar novo PDF (upload direto)
 export async function POST(request: Request) {
   try {
-    console.log("📤 [WEEKLY-PDFS-API] === INICIANDO UPLOAD ===")
+    console.log("📤 [WEEKLY-PDFS-API] === INICIANDO UPLOAD DIRETO ===")
 
     // Verificar variáveis de ambiente primeiro
     const requiredEnvVars = {
@@ -349,22 +348,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Apenas arquivos PDF são permitidos", success: false }, { status: 400 })
     }
 
-    // Aumentar limite para 10MB
-    if (file.size > 10 * 1024 * 1024) {
+    // Aumentar limite para 20MB (sem compressão)
+    if (file.size > 20 * 1024 * 1024) {
       console.error("❌ [WEEKLY-PDFS-API] Arquivo muito grande:", file.size)
-      return NextResponse.json({ error: "PDF muito grande (máximo 10MB)", success: false }, { status: 400 })
+      return NextResponse.json({ error: "PDF muito grande (máximo 20MB)", success: false }, { status: 400 })
     }
 
-    console.log(`✅ [WEEKLY-PDFS-API] Validações OK - processando PDF: ${name}`)
+    console.log(`✅ [WEEKLY-PDFS-API] Validações OK - fazendo upload direto: ${name}`)
 
     try {
       const newPdf = await addWeeklyPdfToSupabase(file, name)
-      console.log(`🎉 [WEEKLY-PDFS-API] PDF adicionado com sucesso: ${newPdf.name}`)
+      console.log(`🎉 [WEEKLY-PDFS-API] PDF enviado com sucesso (upload direto): ${newPdf.name}`)
 
       return NextResponse.json({
         pdf: newPdf,
         success: true,
-        message: "PDF enviado com sucesso!",
+        message: "PDF enviado com sucesso (upload direto)!",
       })
     } catch (storageError) {
       console.error("💥 [WEEKLY-PDFS-API] Erro no storage:", storageError)
