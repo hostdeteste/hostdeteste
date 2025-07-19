@@ -18,6 +18,10 @@ let pdfsCache: WeeklyPdf[] | null = null
 let pdfsCacheTime = 0
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
 
+// Constante para limite de tamanho
+const MAX_PDF_SIZE_MB = 2.5
+const MAX_PDF_SIZE_BYTES = MAX_PDF_SIZE_MB * 1024 * 1024
+
 // Funções auxiliares - SEM file_size
 function transformSupabasePdf(data: any): WeeklyPdf {
   return {
@@ -107,12 +111,21 @@ async function loadWeeklyPdfsFromSupabase(): Promise<WeeklyPdf[]> {
   }
 }
 
-// Função para adicionar PDF - SEM compressão
+// Função para adicionar PDF - COM LIMITE DE 2.5MB
 async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyPdf> {
   try {
     console.log(`📤 [WEEKLY-PDFS-STORAGE] === INICIANDO UPLOAD DIRETO ===`)
     console.log(`📤 [WEEKLY-PDFS-STORAGE] Nome: ${name}`)
     console.log(`📤 [WEEKLY-PDFS-STORAGE] Tamanho: ${(file.size / 1024 / 1024).toFixed(2)}MB`)
+
+    // Validar tamanho do arquivo
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2)
+      throw new Error(
+        `PDF muito grande (${fileSizeMB}MB). O limite máximo é ${MAX_PDF_SIZE_MB}MB. ` +
+          `Por favor, comprima o PDF usando uma ferramenta externa antes do upload.`,
+      )
+    }
 
     // Gerar informações do arquivo
     const now = new Date()
@@ -122,6 +135,9 @@ async function addWeeklyPdfToSupabase(file: File, name: string): Promise<WeeklyP
 
     console.log(`📁 [WEEKLY-PDFS-STORAGE] Arquivo: ${fileName}`)
     console.log(`📅 [WEEKLY-PDFS-STORAGE] Semana: ${week}/${year}`)
+    console.log(
+      `✅ [WEEKLY-PDFS-STORAGE] Tamanho validado: ${(file.size / 1024 / 1024).toFixed(2)}MB <= ${MAX_PDF_SIZE_MB}MB`,
+    )
 
     // Upload direto para R2 - SEM COMPRESSÃO
     console.log(`🔄 [WEEKLY-PDFS-STORAGE] === UPLOAD DIRETO PARA R2 ===`)
@@ -246,6 +262,7 @@ export async function GET() {
         success: true,
         cached: true,
         timestamp: new Date().toISOString(),
+        maxSizeMB: MAX_PDF_SIZE_MB,
       })
     } catch (storageError) {
       console.error("💥 [WEEKLY-PDFS] Erro no storage:", storageError)
@@ -279,10 +296,10 @@ export async function GET() {
   }
 }
 
-// POST - Adicionar novo PDF (upload direto)
+// POST - Adicionar novo PDF (upload direto com limite de 2.5MB)
 export async function POST(request: Request) {
   try {
-    console.log("📤 [WEEKLY-PDFS-API] === INICIANDO UPLOAD DIRETO ===")
+    console.log("📤 [WEEKLY-PDFS-API] === INICIANDO UPLOAD DIRETO (LIMITE 2.5MB) ===")
 
     // Verificar variáveis de ambiente primeiro
     const requiredEnvVars = {
@@ -348,13 +365,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Apenas arquivos PDF são permitidos", success: false }, { status: 400 })
     }
 
-    // Aumentar limite para 20MB (sem compressão)
-    if (file.size > 20 * 1024 * 1024) {
-      console.error("❌ [WEEKLY-PDFS-API] Arquivo muito grande:", file.size)
-      return NextResponse.json({ error: "PDF muito grande (máximo 20MB)", success: false }, { status: 400 })
+    // Validar limite de 2.5MB
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2)
+      console.error(`❌ [WEEKLY-PDFS-API] Arquivo muito grande: ${fileSizeMB}MB > ${MAX_PDF_SIZE_MB}MB`)
+      return NextResponse.json(
+        {
+          error: `PDF muito grande (${fileSizeMB}MB). O limite máximo é ${MAX_PDF_SIZE_MB}MB. Por favor, comprima o PDF usando uma ferramenta externa antes do upload.`,
+          success: false,
+          maxSizeMB: MAX_PDF_SIZE_MB,
+          fileSizeMB: Number.parseFloat(fileSizeMB),
+        },
+        { status: 400 },
+      )
     }
 
-    console.log(`✅ [WEEKLY-PDFS-API] Validações OK - fazendo upload direto: ${name}`)
+    console.log(
+      `✅ [WEEKLY-PDFS-API] Validações OK - fazendo upload direto: ${name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`,
+    )
 
     try {
       const newPdf = await addWeeklyPdfToSupabase(file, name)
@@ -363,7 +391,8 @@ export async function POST(request: Request) {
       return NextResponse.json({
         pdf: newPdf,
         success: true,
-        message: "PDF enviado com sucesso (upload direto)!",
+        message: `PDF enviado com sucesso (${(file.size / 1024 / 1024).toFixed(2)}MB)!`,
+        maxSizeMB: MAX_PDF_SIZE_MB,
       })
     } catch (storageError) {
       console.error("💥 [WEEKLY-PDFS-API] Erro no storage:", storageError)

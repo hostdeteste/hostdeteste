@@ -37,9 +37,14 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
       return
     }
 
-    // Validar tamanho máximo (20MB)
-    if (file.size > 20 * 1024 * 1024) {
-      setUploadError("O PDF deve ter no máximo 20MB")
+    // Validar tamanho máximo (2.5MB)
+    const maxSizeBytes = 2.5 * 1024 * 1024 // 2.5MB
+    if (file.size > maxSizeBytes) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2)
+      setUploadError(
+        `O PDF é muito grande (${fileSizeMB}MB). O limite máximo é 2.5MB. ` +
+          `Por favor, comprima o PDF usando uma ferramenta externa antes do upload.`,
+      )
       return
     }
 
@@ -179,6 +184,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                 <div>
                   <p className="text-lg font-medium text-gray-700">{selectedFile.name}</p>
                   <p className="text-sm text-gray-500">{formatFileSize(selectedFile.size)}</p>
+                  <p className="text-xs text-green-600 font-medium mt-1">✓ Tamanho dentro do limite</p>
                 </div>
                 <button
                   type="button"
@@ -198,7 +204,10 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                 </div>
                 <div>
                   <p className="text-lg font-medium text-gray-700">Clique ou arraste um arquivo PDF</p>
-                  <p className="text-sm text-gray-500 mt-1">PDF até 20MB</p>
+                  <p className="text-sm text-gray-500 mt-1">PDF até 2.5MB</p>
+                  <p className="text-xs text-blue-600 mt-2">
+                    💡 Se o seu PDF for maior, comprima-o primeiro usando ferramentas online
+                  </p>
                 </div>
               </>
             )}
@@ -245,12 +254,34 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
         <div className="flex items-start space-x-3">
           <FileText className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-blue-800">
-            <p className="font-medium mb-1">Upload Direto</p>
+            <p className="font-medium mb-1">Limite de Tamanho: 2.5MB</p>
             <ul className="space-y-1 text-xs">
               <li>• O PDF será enviado exatamente como está</li>
-              <li>• Limite máximo: 20MB</li>
+              <li>• Limite máximo: 2.5MB</li>
               <li>• Formatos aceitos: PDF apenas</li>
-              <li>• Upload seguro e direto para o servidor</li>
+              <li>• Se o arquivo for maior, comprima-o primeiro</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Dicas de compressão */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+          <div className="text-sm text-yellow-800">
+            <p className="font-medium mb-1">💡 PDF muito grande?</p>
+            <p className="text-xs mb-2">Use estas ferramentas gratuitas para comprimir:</p>
+            <ul className="space-y-1 text-xs">
+              <li>
+                • <strong>SmallPDF:</strong> smallpdf.com/compress-pdf
+              </li>
+              <li>
+                • <strong>ILovePDF:</strong> ilovepdf.com/compress_pdf
+              </li>
+              <li>
+                • <strong>PDF24:</strong> tools.pdf24.org/pt/comprimir-pdf
+              </li>
             </ul>
           </div>
         </div>
