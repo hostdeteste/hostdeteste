@@ -69,6 +69,7 @@ export default function VouchersSection() {
               <div className="text-lg sm:text-xl md:text-2xl text-gray-700 leading-relaxed mb-6 sm:mb-8">
                 <p className="mb-4">
                   <span className="text-green-600 font-semibold">Vá descansado!</span>
+                  <br></br>
                   Na correria dos preparativos para o regresso às aulas, nós simplificamos a sua vida.
                 </p>
               </div>
