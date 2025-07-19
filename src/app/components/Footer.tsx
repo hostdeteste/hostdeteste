@@ -39,6 +39,14 @@ export default function Footer() {
                   Início
                 </a>
               </li>
+              <li>
+                <a
+                  href="/#vouchers"
+                  className="text-gray-300 hover:text-white transition-colors hover:text-primary-400 text-sm sm:text-base"
+                >
+                  Manuais Escolares
+                </a>
+              </li>
               {/* Link para Novidades removido temporariamente */}
               {/* <li>
                 <a
@@ -95,9 +103,7 @@ export default function Footer() {
               </div>
               <div className="flex items-center space-x-2 sm:space-x-3">
                 <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-secondary-400 flex-shrink-0" />
-                <a href="mailto:geral@coutyfil.pt">
-                  geral@coutyfil.pt
-                </a>  
+                <a href="mailto:geral@coutyfil.pt">geral@coutyfil.pt</a>
               </div>
             </div>
           </div>
@@ -121,9 +127,7 @@ export default function Footer() {
               </div>
               <div className="flex items-center space-x-2 sm:space-x-3">
                 <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-primary-400 flex-shrink-0" />
-                <a href="mailto:papelaria@coutyfil.pt">
-                  papelaria@coutyfil.pt
-                </a>
+                <a href="mailto:papelaria@coutyfil.pt">papelaria@coutyfil.pt</a>
               </div>
             </div>
           </div>
@@ -132,7 +136,9 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="border-t border-gray-700 mt-8 sm:mt-12 pt-6 sm:pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <p className="text-gray-300 text-xs sm:text-sm">© 2025 Coutyfil-Supermercado. Todos os direitos reservados.</p>
+            <p className="text-gray-300 text-xs sm:text-sm">
+              © 2025 Coutyfil-Supermercado. Todos os direitos reservados.
+            </p>
           </div>
         </div>
       </div>

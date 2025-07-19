@@ -61,7 +61,7 @@ export default function About() {
   return (
     <section
       id="sobre"
-      className="min-h-screen bg-gradient-to-br from-green-50 via-white to-red-50 flex items-center relative pt-16 sm:pt-20"
+      className="min-h-screen bg-gradient-to-br from-red-50 via-white to-green-50 flex items-center relative pt-16 sm:pt-20"
     >
       <div className="container mx-auto px-4 py-12 sm:py-16 md:py-20">
         <div className="grid lg:grid-cols-2 gap-10 sm:gap-16 lg:gap-20 items-center mb-12 sm:mb-16 md:mb-20">
