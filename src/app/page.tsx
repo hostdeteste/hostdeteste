@@ -3,7 +3,7 @@
 import { Suspense } from "react"
 import Header from "./components/Header"
 import Hero from "./components/Hero"
-import VouchersSection from "./components/VouchersSection"
+// import VouchersSection from "./components/VouchersSection"
 // Comentar a importação de Products para ocultar a seção de Novidades
 // import Products from "./components/Products"
 import About from "./components/About"
@@ -71,9 +71,9 @@ export default function Page() {
       </Suspense>
 
       {/* Nova seção de Vouchers */}
-      <Suspense fallback={<VouchersSkeleton />}>
+      {/* <Suspense fallback={<VouchersSkeleton />}>
         <VouchersSection />
-      </Suspense>
+      </Suspense> */}
 
       {/* Comentar a seção de Products/Novidades */}
       {/* <Products /> */}

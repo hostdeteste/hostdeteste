@@ -38,12 +38,12 @@ export default function Header() {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex space-x-4 lg:space-x-8">
-            <a
+            {/* <a
               href="/#vouchers"
               className="text-gray-700 hover:text-primary-600 transition-colors font-medium text-sm lg:text-base"
             >
               Manuais Escolares
-            </a>
+            </a> */}
             {/* Link para Novidades removido temporariamente */}
             {/* <a
               href="/#novidades"
@@ -89,13 +89,13 @@ export default function Header() {
         {isMenuOpen && (
           <nav className="md:hidden mt-3 pb-3 border-t border-primary-100 pt-3 animate-in slide-in-from-top duration-300">
             <div className="flex flex-col space-y-4">
-              <a
+              {/* <a
                 href="/#vouchers"
                 className="text-gray-700 hover:text-primary-600 transition-colors font-medium px-2 py-1.5 rounded-md hover:bg-gray-50"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Manuais Escolares
-              </a>
+              </a> */}
               {/* Link para Novidades removido temporariamente */}
               {/* <a
                 href="/#novidades"

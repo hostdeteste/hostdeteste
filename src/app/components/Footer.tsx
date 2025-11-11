@@ -39,14 +39,14 @@ export default function Footer() {
                   Início
                 </a>
               </li>
-              <li>
+              {/* <li>
                 <a
                   href="/#vouchers"
                   className="text-gray-300 hover:text-white transition-colors hover:text-primary-400 text-sm sm:text-base"
                 >
                   Manuais Escolares
                 </a>
-              </li>
+              </li> */}
               {/* Link para Novidades removido temporariamente */}
               {/* <li>
                 <a
