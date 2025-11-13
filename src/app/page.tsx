@@ -9,6 +9,7 @@ import Hero from "./components/Hero"
 import About from "./components/About"
 import Contact from "./components/Contact"
 import Footer from "./components/Footer"
+import PauperioSection from "./components/PauperioSection"
 
 // Componentes de loading
 function HeroSkeleton() {
@@ -63,12 +64,16 @@ export default function Page() {
 
   return (
     <main className="min-h-screen">
+      {/* <Snowfall /> */}
+
       <Header />
 
       {/* Hero com Suspense para melhor UX */}
       <Suspense fallback={<HeroSkeleton />}>
         <Hero />
       </Suspense>
+
+      <PauperioSection />
 
       {/* Nova seção de Vouchers */}
       {/* <Suspense fallback={<VouchersSkeleton />}>
