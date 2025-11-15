@@ -1,6 +1,6 @@
 "use client"
 
-import { MessageCircle, Phone } from "lucide-react"
+import { MessageCircle, Phone } from 'lucide-react'
 
 export default function PauperioSection() {
   const whatsappNumber = "351910146031"
@@ -51,7 +51,7 @@ export default function PauperioSection() {
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-3 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-lg"
+                  className="inline-flex items-center justify-center gap-3 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
                 >
                   <MessageCircle className="w-5 h-5" />
                   Encomende já
@@ -59,7 +59,7 @@ export default function PauperioSection() {
 
                 <a
                   href={phoneUrl}
-                  className="flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 hover:shadow-lg"
+                  className="inline-flex items-center justify-center gap-3 bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
                 >
                   <Phone className="w-5 h-5" />
                   Encomende já
