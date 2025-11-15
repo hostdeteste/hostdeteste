@@ -4,7 +4,7 @@ import { MessageCircle, Phone } from "lucide-react"
 
 export default function PauperioSection() {
   const whatsappNumber = "351910146031"
-  const phoneNumber = "351910146031"
+  const phoneNumber = "351255720225"
 
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=Olá! Gostaria de encomendar os Fidalguinhos com chocolate.`
   const phoneUrl = `tel:+${phoneNumber}`
