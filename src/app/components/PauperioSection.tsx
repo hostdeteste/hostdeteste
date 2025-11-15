@@ -51,7 +51,19 @@ export default function PauperioSection() {
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-3 bg-green-600 hover:bg-green-700 text-white px-8 sm:px-10 py-4 sm:py-5 rounded-xl font-bold text-lg sm:text-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                  className="inline-flex items-center justify-center gap-3 px-8 sm:px-10 py-4 sm:py-5 rounded-xl font-bold text-lg sm:text-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 text-white"
+                  style={{
+                    backgroundColor: '#16a34a',
+                    backgroundImage: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#15803d'
+                    e.currentTarget.style.backgroundImage = 'linear-gradient(135deg, #15803d 0%, #166534 100%)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#16a34a'
+                    e.currentTarget.style.backgroundImage = 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)'
+                  }}
                 >
                   <MessageCircle className="w-5 h-5" />
                   Encomende já
@@ -59,7 +71,19 @@ export default function PauperioSection() {
 
                 <a
                   href={phoneUrl}
-                  className="inline-flex items-center justify-center gap-3 bg-blue-700 hover:bg-blue-800 text-white px-8 sm:px-10 py-4 sm:py-5 rounded-xl font-bold text-lg sm:text-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                  className="inline-flex items-center justify-center gap-3 px-8 sm:px-10 py-4 sm:py-5 rounded-xl font-bold text-lg sm:text-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 text-white"
+                  style={{
+                    backgroundColor: '#1e40af',
+                    backgroundImage: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#1e3a8a'
+                    e.currentTarget.style.backgroundImage = 'linear-gradient(135deg, #1e3a8a 0%, #172554 100%)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#1e40af'
+                    e.currentTarget.style.backgroundImage = 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)'
+                  }}
                 >
                   <Phone className="w-5 h-5" />
                   Encomende já
