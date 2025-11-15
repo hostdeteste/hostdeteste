@@ -51,7 +51,7 @@ export default function PauperioSection() {
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-3 px-8 sm:px-10 py-4 sm:py-5 rounded-xl font-bold text-lg sm:text-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 text-white"
+                  className="inline-flex items-center justify-center gap-3 px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 text-white"
                   style={{
                     backgroundColor: '#16a34a',
                     backgroundImage: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
@@ -71,7 +71,7 @@ export default function PauperioSection() {
 
                 <a
                   href={phoneUrl}
-                  className="inline-flex items-center justify-center gap-3 px-8 sm:px-10 py-4 sm:py-5 rounded-xl font-bold text-lg sm:text-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 text-white"
+                  className="inline-flex items-center justify-center gap-3 px-6 sm:px-8 py-3 sm:py-4 rounded-lg font-bold text-base sm:text-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 text-white"
                   style={{
                     backgroundColor: '#1e40af',
                     backgroundImage: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
@@ -89,6 +89,7 @@ export default function PauperioSection() {
                   Encomende já
                 </a>
               </div>
+
             </div>
           </div>
         </div>
