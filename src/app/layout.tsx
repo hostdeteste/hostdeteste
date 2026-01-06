@@ -28,7 +28,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <BrowserCompatibility />
-        <Snowflakes />
+        {/*<Snowflakes />*/}
         {children}
       </body>
     </html>

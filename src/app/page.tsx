@@ -73,7 +73,7 @@ export default function Page() {
         <Hero />
       </Suspense>
 
-      <PauperioSection />
+      {/*<PauperioSection */}
 
       {/* Nova seção de Vouchers */}
       {/* <Suspense fallback={<VouchersSkeleton />}>

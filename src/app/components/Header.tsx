@@ -58,13 +58,13 @@ export default function Header() {
             >
               Produtos
             </a> */}
-            <a
+            {/*<a
               href="/#pauperio"
               className="text-gray-700 hover:text-primary-600 transition-colors font-medium text-sm lg:text-base"
             >
               Paupério
             </a>
-
+}*/}
             <a
               href="/#sobre"
               className="text-gray-700 hover:text-primary-600 transition-colors font-medium text-sm lg:text-base"
