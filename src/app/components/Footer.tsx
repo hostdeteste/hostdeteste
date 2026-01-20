@@ -120,9 +120,9 @@ export default function Footer() {
 
           {/* Resolução Alternativa de Litígios */}
           <div>
-            <h4 className="text-base sm:text-lg font-semibold mb-3 sm:mb-3 text-primary-400">Resolução Alternativa de Litígios</h4>
-            <div className="space-y-2 text-gray-300 text-4">
-              <p className="leading-relaxed text-xs">
+            <h4 className="text-base sm:text-lg font-semibold mb-2 sm:mb-2 text-primary-400">Resolução Alternativa de Litígios</h4>
+            <div className="space-y-2 text-gray-300 text-[8px]">
+              <p className="leading-relaxed text-[10px]">
                 Em caso de litígio o consumidor pode recorrer a uma entidade de Resolução Alternativa de Litígios de Consumo (RAL). As entidades de Resolução Alternativa de Litígios de Consumo (RAL) são as entidades autorizadas a efectuar a mediação, conciliação e arbitragem de litígios de consumo em Portugal que estejam inscritas na lista de entidades RAL prevista pela Lei n.º 144/2015.
               </p>
               <a
