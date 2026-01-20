@@ -120,9 +120,9 @@ export default function Footer() {
 
           {/* Resolução Alternativa de Litígios */}
           <div>
-            <h4 className="text-base sm:text-lg font-semibold mb-2 sm:mb-2 text-primary-400">Resolução Alternativa de Litígios</h4>
+            <h4 className="text-base sm:text-lg font-semibold mb-2 sm:mb-0 text-primary-400">Resolução Alternativa de Litígios</h4>
             <div className="space-y-2 text-gray-300 text-[8px]">
-              <p className="leading-relaxed text-[10px]">
+              <p className="leading-relaxed text-[8px]">
                 Em caso de litígio o consumidor pode recorrer a uma entidade de Resolução Alternativa de Litígios de Consumo (RAL). As entidades de Resolução Alternativa de Litígios de Consumo (RAL) são as entidades autorizadas a efectuar a mediação, conciliação e arbitragem de litígios de consumo em Portugal que estejam inscritas na lista de entidades RAL prevista pela Lei n.º 144/2015.
               </p>
               <a
@@ -143,7 +143,7 @@ export default function Footer() {
                   <img
                     src="/images/reclamacoes.png"
                     alt="Livro de Reclamações"
-                    className="h-8 sm:h-12 filter brightness-0 invert"
+                    className="h-6 sm:h-12 filter brightness-0 invert"
                   />
                 </a>
               </div>
@@ -152,7 +152,7 @@ export default function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="border-t border-gray-700 mt-8 sm:mt-12 pt-6 sm:pt-8">
+        <div className="border-t border-gray-700 mt-8 sm:mt-4 pt-6 sm:pt-4">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <p className="text-gray-300 text-xs sm:text-sm">
               © 2025 Coutyfil-Supermercado. Todos os direitos reservados.
