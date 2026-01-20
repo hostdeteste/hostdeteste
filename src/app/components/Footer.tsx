@@ -1,6 +1,6 @@
 "use client"
 
-import { MapPin, Phone, Mail } from "lucide-react"
+import { Facebook, Instagram, MessageCircle, MapPin, Phone, Mail } from "lucide-react"
 
 export default function Footer() {
   return (
@@ -84,50 +84,68 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Loja 1 */}
+          {/* Redes Sociais */}
           <div>
-            <h4 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-secondary-400">Loja 1</h4>
+            <h4 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-secondary-400">Redes Sociais</h4>
             <div className="space-y-2 sm:space-y-3 text-gray-300 text-sm sm:text-base">
-              <div className="flex items-start space-x-2 sm:space-x-3">
-                <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-secondary-400 mt-1 flex-shrink-0" />
-                <div>
-                  <p>Avenida São Miguel de Bustelo, 2835</p>
-                  <p>4560-042 Bustelo, Penafiel</p>
-                  <p>Portugal</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2 sm:space-x-3">
-                <Phone className="h-4 w-4 sm:h-5 sm:w-5 text-primary-400 flex-shrink-0" />
-                <a href="tel:255720225">255720225</a>
-                <span className="text-xs text-gray-500 ml-6">(Chamada para rede fixa nacional)</span>
-              </div>
-              <div className="flex items-center space-x-2 sm:space-x-3">
-                <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-secondary-400 flex-shrink-0" />
-                <a href="mailto:geral@coutyfil.pt">geral@coutyfil.pt</a>
-              </div>
+              <a
+                href="https://www.facebook.com/coutyfil.lda/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center space-x-2 sm:space-x-3 hover:text-white transition-colors"
+              >
+                <Facebook className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 flex-shrink-0" />
+                <span>Siga-nos no Facebook</span>
+              </a>
+              <a
+                href="https://www.instagram.com/coutyfil_lda/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center space-x-2 sm:space-x-3 hover:text-white transition-colors"
+              >
+                <Instagram className="h-4 w-4 sm:h-5 sm:w-5 text-pink-500 flex-shrink-0" />
+                <span>Siga-nos no Instagram</span>
+              </a>
+              <a
+                href="https://api.whatsapp.com/send/?phone=351910146031&text&type=phone_number&app_absent=0"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center space-x-2 sm:space-x-3 hover:text-white transition-colors"
+              >
+                <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-500 flex-shrink-0" />
+                <span>Fale connosco pelo WhatsApp</span>
+              </a>
             </div>
           </div>
 
-          {/* Loja 2 */}
+          {/* Resolução Alternativa de Litígios */}
           <div>
-            <h4 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-primary-400">Loja 2</h4>
-            <div className="space-y-2 sm:space-y-3 text-gray-300 text-sm sm:text-base">
-              <div className="flex items-start space-x-2 sm:space-x-3">
-                <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-primary-400 mt-1 flex-shrink-0" />
-                <div>
-                  <p>R. Abílio Miranda, Edf. Estádio, Loja Q/R</p>
-                  <p>4560-501 - Penafiel</p>
-                  <p>Portugal</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2 sm:space-x-3">
-                <Phone className="h-4 w-4 sm:h-5 sm:w-5 text-secondary-400 flex-shrink-0" />
-                <a href="tel:255213418">255213418</a>
-                <span className="text-xs text-gray-500 ml-6">(Chamada para rede fixa nacional)</span>
-              </div>
-              <div className="flex items-center space-x-2 sm:space-x-3">
-                <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-primary-400 flex-shrink-0" />
-                <a href="mailto:papelaria@coutyfil.pt">papelaria@coutyfil.pt</a>
+            <h4 className="text-base sm:text-lg font-semibold mb-3 sm:mb-3 text-primary-400">Resolução Alternativa de Litígios</h4>
+            <div className="space-y-2 text-gray-300 text-4">
+              <p className="leading-relaxed text-xs">
+                Em caso de litígio o consumidor pode recorrer a uma entidade de Resolução Alternativa de Litígios de Consumo (RAL). As entidades de Resolução Alternativa de Litígios de Consumo (RAL) são as entidades autorizadas a efectuar a mediação, conciliação e arbitragem de litígios de consumo em Portugal que estejam inscritas na lista de entidades RAL prevista pela Lei n.º 144/2015.
+              </p>
+              <a
+                href="https://www.ipai.pt/fotos/gca/i006245_1459446712.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block text-xs text-primary-400 hover:text-primary-300 underline transition-colors"
+              >
+                Clique aqui para mais informações
+              </a>
+              <div className="pt-2">
+                <a
+                  href="https://www.livroreclamacoes.pt/Inicio/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block"
+                >
+                  <img
+                    src="/images/reclamacoes.png"
+                    alt="Livro de Reclamações"
+                    className="h-8 sm:h-12 filter brightness-0 invert"
+                  />
+                </a>
               </div>
             </div>
           </div>
