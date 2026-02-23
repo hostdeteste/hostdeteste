@@ -23,9 +23,9 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 // DELETE - Deletar PDF semanal e seu arquivo
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const pdfId = params.id
+    const { id: pdfId } = await params
 
     if (!pdfId) {
       return NextResponse.json({ error: "ID do PDF é obrigatório", success: false }, { status: 400 })
