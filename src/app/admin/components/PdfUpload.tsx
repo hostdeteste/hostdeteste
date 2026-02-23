@@ -28,7 +28,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
     const endDay = end.getDate()
     const endMonth = end.getMonth() + 1
 
-    return `Folheto ${startDay}/${startMonth} a ${endDay}/${endMonth}`
+    return `Folheto de ${startDay}/${startMonth} a ${endDay}/${endMonth}`
   }
 
   const formatFileSize = (bytes: number): string => {
