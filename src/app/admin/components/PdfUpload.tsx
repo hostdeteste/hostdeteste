@@ -19,11 +19,16 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
 
   // Gerar nome automático baseado na data
   const generateWeeklyName = () => {
-    const now = new Date()
-    const day = now.getDate()
-    const month = now.getMonth() + 1
-    const year = now.getFullYear()
-    return `Folheto ${day}/${month} a ${day + 14}/${month}`
+    const start = new Date()
+    const end = new Date(start)
+    end.setDate(end.getDate() + 13)
+
+    const startDay = start.getDate()
+    const startMonth = start.getMonth() + 1
+    const endDay = end.getDate()
+    const endMonth = end.getMonth() + 1
+
+    return `Folheto ${startDay}/${startMonth} a ${endDay}/${endMonth}`
   }
 
   const formatFileSize = (bytes: number): string => {
