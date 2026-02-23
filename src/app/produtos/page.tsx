@@ -134,11 +134,6 @@ export default function ProductsPage() {
                           <span>Destaque</span>
                         </span>
                       </div>
-                      <div className="absolute top-2 right-2">
-                        <span className="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                          {product.category}
-                        </span>
-                      </div>
                     </div>
                     <div className="p-6">
                       <h3 className="text-xl font-semibold text-gray-800 mb-2">{product.name}</h3>
