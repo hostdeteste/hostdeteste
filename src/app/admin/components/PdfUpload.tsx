@@ -206,7 +206,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
                   <p className="text-lg font-medium text-gray-700">Clique ou arraste um arquivo PDF</p>
                   <p className="text-sm text-gray-500 mt-1">PDF até 2.5MB</p>
                   <p className="text-xs text-blue-600 mt-2">
-                    💡 Se o seu PDF for maior, comprima-o primeiro usando ferramentas online
+                    💡 Se o seu PDF for maior, comprima-o primeiro.
                   </p>
                 </div>
               </>
@@ -248,22 +248,6 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
           )}
         </button>
       )}
-
-      {/* Info sobre upload */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex items-start space-x-3">
-          <FileText className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-          <div className="text-sm text-blue-800">
-            <p className="font-medium mb-1">Limite de Tamanho: 2.5MB</p>
-            <ul className="space-y-1 text-xs">
-              <li>• O PDF será enviado exatamente como está</li>
-              <li>• Limite máximo: 2.5MB</li>
-              <li>• Formatos aceitos: PDF apenas</li>
-              <li>• Se o arquivo for maior, comprima-o primeiro</li>
-            </ul>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
