@@ -23,7 +23,7 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
     const day = now.getDate()
     const month = now.getMonth() + 1
     const year = now.getFullYear()
-    return `Folheto ${day}/${month} a ${day + 7}/${month}`
+    return `Folheto ${day}/${month} a ${day + 14}/${month}`
   }
 
   const formatFileSize = (bytes: number): string => {
