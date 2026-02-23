@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   try {
     // Lista atualizada de categorias
-    const categories = ["Mercearia", "Escritorio", "Escolar", "Brinquedos", "Eletrônicos", "Outros"]
+    const categories = ["Mercearia", "Escritorio", "Escolar", "Brinquedos", "Coleções", "Outros"]
 
     return NextResponse.json({
       categories,
