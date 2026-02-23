@@ -62,7 +62,20 @@ export default function AdminPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   const featuredProducts = getFeaturedProducts()
-  const categories = ["Mercearia", "Escritorio", "Escolar", "Brinquedos", "Eletroonicos", "Outros"]
+  const [categories, setCategories] = useState<string[]>([])
+
+  useEffect(() => {
+    fetch("/api/categories")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.categories) {
+          setCategories(data.categories)
+        }
+      })
+      .catch(() => {
+        setCategories(["Mercearia", "Papelaria", "Livraria", "Brinquedos", "Colecoes", "Decoracao", "Brindes"])
+      })
+  }, [])
 
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message })
