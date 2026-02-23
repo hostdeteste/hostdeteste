@@ -430,7 +430,8 @@ export function useProducts() {
       }
 
       // Limpar cache
-      localStorage.removeItem("products_cache_v2")
+      localStorage.removeItem(CACHE_KEY)
+      saveProductsToCache(newProducts)
       setLastUpdate(Date.now())
       return data
     } catch (error) {

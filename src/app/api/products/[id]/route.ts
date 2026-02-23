@@ -23,9 +23,9 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 // DELETE - Deletar produto específico e sua imagem
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const productId = params.id
+    const { id: productId } = await params
 
     if (!productId) {
       return NextResponse.json({ error: "ID do produto é obrigatório", success: false }, { status: 400 })
