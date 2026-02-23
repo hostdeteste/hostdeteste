@@ -113,9 +113,6 @@ export default function ProductPage() {
                 <div>
                   <h1 className="text-3xl font-bold text-gray-800 mb-2">{product?.name}</h1>
                   <div className="flex items-center space-x-2">
-                    <span className="px-3 py-1 bg-green-600 text-white rounded-full text-sm font-medium">
-                      {product?.category}
-                    </span>
                     <span className="text-gray-500 text-sm">ID: {product?.id}</span>
                   </div>
                 </div>
