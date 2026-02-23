@@ -247,11 +247,6 @@ export default function ProductsPage() {
                           className="w-full h-full object-contain"
                         />
                       </div>
-                      <div className="absolute top-2 right-2">
-                        <span className="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium">
-                          {product.category}
-                        </span>
-                      </div>
                       {product.featured && (
                         <div className="absolute top-2 left-2">
                           <span className="bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1">
