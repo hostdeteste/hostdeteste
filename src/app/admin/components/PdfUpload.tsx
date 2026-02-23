@@ -264,28 +264,6 @@ export default function PdfUpload({ onUpload, isUploading = false, className = "
           </div>
         </div>
       </div>
-
-      {/* Dicas de compressão */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <div className="flex items-start space-x-3">
-          <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-          <div className="text-sm text-yellow-800">
-            <p className="font-medium mb-1">💡 PDF muito grande?</p>
-            <p className="text-xs mb-2">Use estas ferramentas gratuitas para comprimir:</p>
-            <ul className="space-y-1 text-xs">
-              <li>
-                • <strong>SmallPDF:</strong> smallpdf.com/compress-pdf
-              </li>
-              <li>
-                • <strong>ILovePDF:</strong> ilovepdf.com/compress_pdf
-              </li>
-              <li>
-                • <strong>PDF24:</strong> tools.pdf24.org/pt/comprimir-pdf
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
