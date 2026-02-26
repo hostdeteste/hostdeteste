@@ -119,13 +119,14 @@ export default function Header() {
               >
                 Produtos
               </a> */}
-              <a
+              
+              {/*<a
                 href="/#pauperio"
                 className="text-gray-700 hover:text-primary-600 transition-colors font-medium px-2 py-1.5 rounded-md hover:bg-gray-50"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Paupério
-              </a>
+              </a>*/}
               
               <a
                 href="/#sobre"
