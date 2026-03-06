@@ -1,5 +1,6 @@
-// Sistema de storage otimizado com fallbacks robustos
-import { createClient } from "@supabase/supabase-js"
+// Sistema de storage otimizado com armazenamento em memória
+// Sem dependência de Supabase - usa dados locais
+
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 
 // Tipos
@@ -27,29 +28,27 @@ export interface WeeklyPdf {
   file_size?: number
 }
 
-// Configurações
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+// Armazenamento em memória (substitui Supabase)
+let inMemoryProducts: Product[] = []
+let inMemoryPdfs: WeeklyPdf[] = []
 
-// Verificar se as variáveis estão definidas
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error("❌ [STORAGE] Variáveis Supabase não configuradas:")
-  console.error("NEXT_PUBLIC_SUPABASE_URL:", !!supabaseUrl)
-  console.error("SUPABASE_SERVICE_ROLE_KEY:", !!supabaseServiceKey)
-  throw new Error("Configuração Supabase incompleta")
-}
+// Configurações do R2 (opcional - só se tiver as variáveis)
+const hasR2Config = !!(
+  process.env.CLOUDFLARE_R2_ACCOUNT_ID &&
+  process.env.CLOUDFLARE_R2_ACCESS_KEY_ID &&
+  process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY
+)
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-// Configurações do R2
-const r2Client = new S3Client({
-  region: "auto",
-  endpoint: `https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
-  },
-})
+const r2Client = hasR2Config
+  ? new S3Client({
+      region: "auto",
+      endpoint: `https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
+      },
+    })
+  : null
 
 const BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME || "coutyfil-assets"
 const R2_PUBLIC_URL = "https://pub-92501dd4f797413a9775e615967d81ba.r2.dev"
@@ -65,7 +64,7 @@ const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
 
 export async function loadProductsFromCloud(): Promise<Product[]> {
   try {
-    console.log("🔄 [STORAGE] Carregando produtos do Supabase...")
+    console.log("🔄 [STORAGE] Carregando produtos da memória...")
 
     // Verificar cache primeiro
     if (productsCache && Date.now() - productsCacheTime < CACHE_DURATION) {
@@ -73,20 +72,14 @@ export async function loadProductsFromCloud(): Promise<Product[]> {
       return productsCache
     }
 
-    const { data, error } = await supabase.from("products").select("*").order("created_at", { ascending: false })
-
-    if (error) {
-      console.error("❌ [STORAGE] Erro no Supabase:", error)
-      throw new Error(`Erro no Supabase: ${error.message}`)
-    }
-
-    const products = (data || []).map(transformSupabaseProduct)
+    // Retorna produtos da memória
+    const products = [...inMemoryProducts]
 
     // Atualizar cache
     productsCache = products
     productsCacheTime = Date.now()
 
-    console.log(`✅ [STORAGE] ${products.length} produtos carregados do Supabase`)
+    console.log(`✅ [STORAGE] ${products.length} produtos carregados da memória`)
     return products
   } catch (error) {
     console.error("💥 [STORAGE] Erro ao carregar produtos:", error)
@@ -97,38 +90,25 @@ export async function loadProductsFromCloud(): Promise<Product[]> {
       return productsCache
     }
 
-    throw error
+    return []
   }
 }
 
 export async function saveProductsToCloud(products: Product[]): Promise<void> {
   try {
-    console.log(`💾 [STORAGE] Salvando ${products.length} produtos no Supabase...`)
+    console.log(`💾 [STORAGE] Salvando ${products.length} produtos na memória...`)
 
-    // Limpar tabela e inserir novos dados
-    const { error: deleteError } = await supabase.from("products").delete().neq("id", "impossible-id") // Deletar todos
-
-    if (deleteError) {
-      console.error("❌ [STORAGE] Erro ao limpar produtos:", deleteError)
-      throw new Error(`Erro ao limpar produtos: ${deleteError.message}`)
-    }
-
-    if (products.length > 0) {
-      const supabaseProducts = products.map(transformProductToSupabase)
-
-      const { error: insertError } = await supabase.from("products").insert(supabaseProducts)
-
-      if (insertError) {
-        console.error("❌ [STORAGE] Erro ao inserir produtos:", insertError)
-        throw new Error(`Erro ao inserir produtos: ${insertError.message}`)
-      }
-    }
+    // Salvar na memória
+    inMemoryProducts = products.map((p) => ({
+      ...p,
+      updated_at: new Date().toISOString(),
+    }))
 
     // Limpar cache
     productsCache = null
     productsCacheTime = 0
 
-    console.log("✅ [STORAGE] Produtos salvos com sucesso no Supabase")
+    console.log("✅ [STORAGE] Produtos salvos com sucesso na memória")
   } catch (error) {
     console.error("💥 [STORAGE] Erro ao salvar produtos:", error)
     throw error
@@ -139,7 +119,7 @@ export async function saveProductsToCloud(products: Product[]): Promise<void> {
 
 export async function loadWeeklyPdfsFromCloud(): Promise<WeeklyPdf[]> {
   try {
-    console.log("🔄 [STORAGE] Carregando PDFs do Supabase...")
+    console.log("🔄 [STORAGE] Carregando PDFs da memória...")
 
     // Verificar cache primeiro
     if (pdfsCache && Date.now() - pdfsCacheTime < CACHE_DURATION) {
@@ -147,20 +127,14 @@ export async function loadWeeklyPdfsFromCloud(): Promise<WeeklyPdf[]> {
       return pdfsCache
     }
 
-    const { data, error } = await supabase.from("weekly_pdfs").select("*").order("upload_date", { ascending: false })
-
-    if (error) {
-      console.error("❌ [STORAGE] Erro no Supabase (PDFs):", error)
-      throw new Error(`Erro no Supabase: ${error.message}`)
-    }
-
-    const pdfs = (data || []).map(transformSupabasePdf)
+    // Retorna PDFs da memória
+    const pdfs = [...inMemoryPdfs]
 
     // Atualizar cache
     pdfsCache = pdfs
     pdfsCacheTime = Date.now()
 
-    console.log(`✅ [STORAGE] ${pdfs.length} PDFs carregados do Supabase`)
+    console.log(`✅ [STORAGE] ${pdfs.length} PDFs carregados da memória`)
     return pdfs
   } catch (error) {
     console.error("💥 [STORAGE] Erro ao carregar PDFs:", error)
@@ -171,7 +145,7 @@ export async function loadWeeklyPdfsFromCloud(): Promise<WeeklyPdf[]> {
       return pdfsCache
     }
 
-    throw error
+    return []
   }
 }
 
@@ -195,27 +169,36 @@ export async function addWeeklyPdf(file: File, name: string): Promise<WeeklyPdf>
     const year = now.getFullYear()
     const fileName = `weekly-pdfs/${year}-w${week}-${Date.now()}.pdf`
 
-    // Upload para R2
-    console.log(`🔄 [STORAGE] Fazendo upload para R2: ${fileName}`)
+    let fileUrl = ""
 
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    // Upload para R2 se configurado
+    if (r2Client) {
+      console.log(`🔄 [STORAGE] Fazendo upload para R2: ${fileName}`)
 
-    await r2Client.send(
-      new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: fileName,
-        Body: buffer,
-        ContentType: "application/pdf",
-        ContentLength: buffer.length,
-      }),
-    )
+      const arrayBuffer = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
 
-    const fileUrl = `${R2_PUBLIC_URL}/${fileName}`
-    console.log(`✅ [STORAGE] Upload concluído: ${fileUrl}`)
+      await r2Client.send(
+        new PutObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: fileName,
+          Body: buffer,
+          ContentType: "application/pdf",
+          ContentLength: buffer.length,
+        }),
+      )
 
-    // Salvar no Supabase
-    const pdfData = {
+      fileUrl = `${R2_PUBLIC_URL}/${fileName}`
+      console.log(`✅ [STORAGE] Upload concluído: ${fileUrl}`)
+    } else {
+      // Sem R2, usar URL local placeholder
+      fileUrl = `/uploads/${fileName}`
+      console.log("⚠️ [STORAGE] R2 não configurado, usando URL local")
+    }
+
+    // Criar novo PDF
+    const newPdf: WeeklyPdf = {
+      id: `pdf-${Date.now()}`,
       name,
       file_path: fileName,
       url: fileUrl,
@@ -225,20 +208,14 @@ export async function addWeeklyPdf(file: File, name: string): Promise<WeeklyPdf>
       file_size: file.size,
     }
 
-    const { data, error } = await supabase.from("weekly_pdfs").insert([pdfData]).select().single()
-
-    if (error) {
-      console.error("❌ [STORAGE] Erro ao salvar PDF no Supabase:", error)
-      throw new Error(`Erro ao salvar PDF: ${error.message}`)
-    }
+    // Adicionar à memória
+    inMemoryPdfs.unshift(newPdf)
 
     // Limpar cache
     pdfsCache = null
     pdfsCacheTime = 0
 
-    const newPdf = transformSupabasePdf(data)
     console.log(`✅ [STORAGE] PDF adicionado com sucesso: ${newPdf.name}`)
-
     return newPdf
   } catch (error) {
     console.error("💥 [STORAGE] Erro ao adicionar PDF:", error)
@@ -253,23 +230,29 @@ export async function uploadImageToCloud(file: File): Promise<string> {
     console.log(`🖼️ [STORAGE] Fazendo upload de imagem: ${file.name}`)
 
     const fileName = `images/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
 
-    await r2Client.send(
-      new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: fileName,
-        Body: buffer,
-        ContentType: file.type,
-        ContentLength: buffer.length,
-      }),
-    )
+    if (r2Client) {
+      const arrayBuffer = await file.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
 
-    const imageUrl = `${R2_PUBLIC_URL}/${fileName}`
-    console.log(`✅ [STORAGE] Upload de imagem concluído: ${imageUrl}`)
+      await r2Client.send(
+        new PutObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: fileName,
+          Body: buffer,
+          ContentType: file.type,
+          ContentLength: buffer.length,
+        }),
+      )
 
-    return imageUrl
+      const imageUrl = `${R2_PUBLIC_URL}/${fileName}`
+      console.log(`✅ [STORAGE] Upload de imagem concluído: ${imageUrl}`)
+      return imageUrl
+    } else {
+      // Sem R2, retornar URL local placeholder
+      console.log("⚠️ [STORAGE] R2 não configurado, usando URL local")
+      return `/uploads/${fileName}`
+    }
   } catch (error) {
     console.error("💥 [STORAGE] Erro no upload de imagem:", error)
     throw error
@@ -277,49 +260,6 @@ export async function uploadImageToCloud(file: File): Promise<string> {
 }
 
 // === FUNÇÕES AUXILIARES ===
-
-function transformSupabaseProduct(data: any): Product {
-  return {
-    id: data.id,
-    name: data.name || "",
-    description: data.description || "",
-    price: data.price || 0,
-    image: data.image || "",
-    category: data.category || "",
-    featured: data.featured || false,
-    order: data.order || 0,
-    created_at: data.created_at,
-    updated_at: data.updated_at,
-  }
-}
-
-function transformProductToSupabase(product: Product): any {
-  return {
-    id: product.id,
-    name: product.name,
-    description: product.description,
-    price: product.price,
-    image: product.image,
-    category: product.category,
-    featured: product.featured,
-    order: product.order,
-    created_at: product.created_at || new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }
-}
-
-function transformSupabasePdf(data: any): WeeklyPdf {
-  return {
-    id: data.id,
-    name: data.name || "",
-    file_path: data.file_path || "",
-    url: data.url || "",
-    upload_date: data.upload_date || new Date().toISOString(),
-    week: data.week || 1,
-    year: data.year || new Date().getFullYear(),
-    file_size: data.file_size || 0,
-  }
-}
 
 function getWeekNumber(date: Date): number {
   const firstDayOfYear = new Date(date.getFullYear(), 0, 1)
@@ -337,7 +277,10 @@ export function clearAllCache(): void {
   console.log("🧹 [STORAGE] Cache limpo")
 }
 
-export function getCacheStats(): any {
+export function getCacheStats(): {
+  products: { cached: boolean; count: number; age: number }
+  pdfs: { cached: boolean; count: number; age: number }
+} {
   return {
     products: {
       cached: !!productsCache,
@@ -350,4 +293,60 @@ export function getCacheStats(): any {
       age: pdfsCache ? Date.now() - pdfsCacheTime : 0,
     },
   }
+}
+
+// === FUNÇÕES PARA MANIPULAÇÃO DIRETA ===
+
+export function getProducts(): Product[] {
+  return [...inMemoryProducts]
+}
+
+export function setProducts(products: Product[]): void {
+  inMemoryProducts = [...products]
+  productsCache = null
+  productsCacheTime = 0
+}
+
+export function addProduct(product: Product): void {
+  inMemoryProducts.push(product)
+  productsCache = null
+  productsCacheTime = 0
+}
+
+export function updateProduct(id: string, updates: Partial<Product>): boolean {
+  const index = inMemoryProducts.findIndex((p) => p.id === id)
+  if (index === -1) return false
+
+  inMemoryProducts[index] = {
+    ...inMemoryProducts[index],
+    ...updates,
+    updated_at: new Date().toISOString(),
+  }
+  productsCache = null
+  productsCacheTime = 0
+  return true
+}
+
+export function deleteProduct(id: string): boolean {
+  const index = inMemoryProducts.findIndex((p) => p.id === id)
+  if (index === -1) return false
+
+  inMemoryProducts.splice(index, 1)
+  productsCache = null
+  productsCacheTime = 0
+  return true
+}
+
+export function getPdfs(): WeeklyPdf[] {
+  return [...inMemoryPdfs]
+}
+
+export function deletePdf(id: string): boolean {
+  const index = inMemoryPdfs.findIndex((p) => p.id === id)
+  if (index === -1) return false
+
+  inMemoryPdfs.splice(index, 1)
+  pdfsCache = null
+  pdfsCacheTime = 0
+  return true
 }

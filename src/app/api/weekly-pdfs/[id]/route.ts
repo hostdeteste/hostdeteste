@@ -1,23 +1,28 @@
 import { NextResponse } from "next/server"
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3"
-import { createClient } from "@supabase/supabase-js"
+import { deletePdf, getPdfs } from "@/app/lib/storage-optimized"
 
 export const dynamic = "force-dynamic"
 
-const r2Client = new S3Client({
-  region: "auto",
-  endpoint: `https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
-  },
-})
+// Configurações do R2 (opcional)
+const hasR2Config = !!(
+  process.env.CLOUDFLARE_R2_ACCOUNT_ID &&
+  process.env.CLOUDFLARE_R2_ACCESS_KEY_ID &&
+  process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY
+)
+
+const r2Client = hasR2Config
+  ? new S3Client({
+      region: "auto",
+      endpoint: `https://${process.env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
+      },
+    })
+  : null
 
 const BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME || "coutyfil-assets"
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -28,21 +33,15 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     }
 
     // Buscar o PDF
-    const { data: pdf, error: fetchError } = await supabase.from("weekly_pdfs").select("*").eq("id", pdfId).single()
-
-    if (fetchError) {
-      return NextResponse.json(
-        { error: "Erro ao buscar PDF", details: fetchError.message, success: false },
-        { status: 500 },
-      )
-    }
+    const pdfs = getPdfs()
+    const pdf = pdfs.find((p) => p.id === pdfId)
 
     if (!pdf) {
       return NextResponse.json({ error: "PDF nao encontrado", success: false }, { status: 404 })
     }
 
-    // Deletar do R2
-    if (pdf.file_path) {
+    // Deletar do R2 se configurado
+    if (r2Client && pdf.file_path) {
       try {
         await r2Client.send(
           new DeleteObjectCommand({
@@ -50,19 +49,17 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
             Key: pdf.file_path,
           }),
         )
+        console.log("✅ [PDFS] Arquivo deletado do R2")
       } catch (fileError) {
         console.error("Erro ao deletar arquivo do R2:", fileError)
       }
     }
 
-    // Deletar do Supabase
-    const { error: deleteError } = await supabase.from("weekly_pdfs").delete().eq("id", pdfId)
+    // Deletar da memória
+    const deleted = deletePdf(pdfId)
 
-    if (deleteError) {
-      return NextResponse.json(
-        { error: "Erro ao deletar PDF", details: deleteError.message, success: false },
-        { status: 500 },
-      )
+    if (!deleted) {
+      return NextResponse.json({ error: "Erro ao deletar PDF", success: false }, { status: 500 })
     }
 
     return NextResponse.json({
@@ -70,7 +67,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       message: "PDF e seu arquivo foram deletados com sucesso",
       deletedPdfId: pdfId,
       pdfName: pdf.name,
-      fileDeleted: !!pdf.file_path,
+      fileDeleted: r2Client && !!pdf.file_path,
     })
   } catch (error) {
     return NextResponse.json(
