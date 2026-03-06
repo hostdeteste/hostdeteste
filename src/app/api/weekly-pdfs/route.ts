@@ -9,6 +9,7 @@ const MAX_PDF_SIZE_BYTES = MAX_PDF_SIZE_MB * 1024 * 1024
 // GET
 export async function GET() {
   try {
+    console.log("[v0] weekly-pdfs GET called - storage-optimized sem Supabase")
     const pdfs = await loadWeeklyPdfsFromCloud()
     const latest = pdfs.length > 0 ? pdfs[0] : null
 
